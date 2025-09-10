@@ -1,0 +1,13 @@
+body {
+    font-family: Helvetica, Tahoma, sans-serif;
+    background-color: black
+}
+
+div {
+    padding: 0px; 
+    overflow: auto;
+}
+
+div::-webkit-scrollbar {
+    display: none;
+}
