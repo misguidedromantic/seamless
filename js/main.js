@@ -15,24 +15,56 @@ function loadSME (){
     function getSMEdata(){
         return [
             new sme ('SME'),
+            new sme ('select'),
             new sme ('Side Hustle'),
             new sme ('Construction Company'),
             new sme ('Freelance Profressional')
         ]
     }
 
+    
     function render(svg, data){
+
+        const updateSelection = function(){
+        
+            const clickedElement = d3.select(this)
+            let i = undefined
+            try{
+                const id = clickedElement.attr('id')
+                i = data.findIndex(obj => obj.type === id)
+            } catch {
+                i = 1
+            } finally {
+               for(let j = 0; j < data.length; j++){
+                    
+                    switch(j){
+                        case 0:
+                        case i:
+                            data[j].selected = true
+                            break;
+                        default:
+                            data[j].selected = false
+                    }
+                }
+            }
+        }
 
         const setPosition = function(d, i){
 
             const iSelected = data.findIndex(obj => obj.selected)
             
-            const x = 50
-            const y = (i - iSelected) * 17 + 30
+            const x = d.type === 'SME' ? 50 : 90
+            const y = 50
+            
+            //(i - iSelected) * 17 + 30
+            
             
             return d3Helper.getTranslateString(x, y)
         }
 
+        updateSelection()
+
+        
         svg.selectAll('g.sme')
             .data(data, d => d.type)
             .join(
@@ -40,6 +72,7 @@ function loadSME (){
                     const groups = enter.append('g')
                         .attr('id', d => d.type)
                         .attr('transform', (d, i) => {return setPosition(d, i)})
+                        .on('click', updateSelection)
                     
 /*                     groups.append('rect')
                         .attr('width', 10)
@@ -52,6 +85,11 @@ function loadSME (){
                         .attr('dx', 15)
                         .attr('dy', 9)
 
+                    return groups
+                },
+
+                update => {
+                    const groups = update.selectAll('g').attr('transform', (d, i) => {return setPosition(d, i)})
                 }
 
             )
@@ -62,9 +100,9 @@ function loadSME (){
     const svg = display.getCanvas()
     const data = getSMEdata()
     render(svg, data)
-
-        
 }
+
+
 
 class scenario {
 
@@ -79,13 +117,17 @@ class sme {
         this.selected = false
     }
 
+    select(){
+        this.selected = true
+    }
+
+    deselect(){
+        this.selected = false
+    }
+
     toggleSelection(){
         this.selected = this.selected === false ? true : false
     }
-    
-
-    
-
 
 
 }
