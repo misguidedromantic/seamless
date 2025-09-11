@@ -2,126 +2,30 @@ window.onload = async function(){
     
     display.setup()
     displays.loadSME()
-    //loadSME()
-    
-
-    //render SME, render SME slection options
-
 }
 
-
-
-
-
-function loadSME (){
-
-    function getSMEdata(){
-        return [
-            new sme ('SME'),
-            new sme ('select'),
-            new sme ('Side Hustle'),
-            new sme ('Construction Company'),
-            new sme ('Freelance Profressional')
-        ]
-    }
-
-    
-
-    function setupSMEmenu(){
+function onItemClick(){
         
-        const SMEs = [
-            'Side Hustle',
-            'Construction Company',
-            'Freelance Profressional'
-        ]
-
-
-
-
-    }
-    
-
-    
-    function render(svg, data){
-
-        const updateSelection = function(){
-        
-            const clickedElement = d3.select(this)
-            let i = undefined
-            try{
-                const id = clickedElement.attr('id')
-                i = data.findIndex(obj => obj.type === id)
-            } catch {
-                i = 1
-            } finally {
-               for(let j = 0; j < data.length; j++){
-                    
-                    switch(j){
-                        case 0:
-                        case i:
-                            data[j].selected = true
-                            break;
-                        default:
-                            data[j].selected = false
-                    }
-                }
+    const clickedElement = d3.select(this)
+    let i = undefined
+    try{
+        const id = clickedElement.attr('id')
+        i = data.findIndex(obj => obj.type === id)
+    } catch {
+        i = 1
+    } finally {
+        for(let j = 0; j < data.length; j++){
+            
+            switch(j){
+                case 0:
+                case i:
+                    data[j].selected = true
+                    break;
+                default:
+                    data[j].selected = false
             }
         }
-
-        const setPosition = function(d, i){
-
-            const iSelected = data.findIndex(obj => obj.selected)
-            
-            const x = d.type === 'SME' ? 50 : 90
-            const y = 50
-            
-            //(i - iSelected) * 17 + 30
-            
-            
-            return d3Helper.getTranslateString(x, y)
-        }
-
-        updateSelection()
-
-        
-        svg.selectAll('g.sme')
-            .data(data, d => d.type)
-            .join(
-                enter => {
-                    const groups = enter.append('g')
-                        .attr('id', d => d.type)
-                        .attr('transform', (d, i) => {return setPosition(d, i)})
-                        .on('click', updateSelection)
-                    
-/*                     groups.append('rect')
-                        .attr('width', 10)
-                        .attr('height', 10)
-                        .attr('fill', 'white') */
-                    
-                    groups.append('text')
-                        .text(d => d.type)
-                        .style('fill', d => d.type === 'SME' ? 'blue' : 'black')
-                        .attr('dx', 15)
-                        .attr('dy', 9)
-
-                    return groups
-                },
-
-                update => {
-                    const groups = update.selectAll('g').attr('transform', (d, i) => {return setPosition(d, i)})
-                }
-
-            )
-            
     }
-    
-    
-    const svg = display.getCanvas()
-    
-    
-    
-    const data = getSMEdata()
-    render(svg, data)
 }
 
 
@@ -178,6 +82,7 @@ class menu {
                         .attr('class', 'sme')
                         .attr('id', d => d.label)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
+                        .on('click', onItemClick)
 
                     groups.append('text')
                         .text(d => d.label)
@@ -191,6 +96,7 @@ class menu {
     }
 
 }
+
 
 class menuItemStyling {
     constructor(items){
