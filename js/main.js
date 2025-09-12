@@ -229,9 +229,6 @@ class menuItemPositioning {
     }
 
     getListPosition(d, i){
-        const selectedi = this.getSelectedItemIndex()
-        console.log(selectedi)
-        
         switch(d.type){
             case 'title':
             case 'selector':
@@ -294,7 +291,7 @@ class windowControl {
     }
 
     reposition(left, top){
-        this.reposition(left, top)
+        this.div.style('left', left + 'px').style('top', top + 'px')
     }
 
     resizeDiv(width, height){
