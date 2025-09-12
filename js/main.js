@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1158')
+    console.log('1208')
     displays.loadSME()
 }
 
@@ -131,12 +131,18 @@ class menu {
     }
 
     createItems(options){
-        this.items.push(new menuItem ('title', this.title))
-        this.items.push(new menuItem ('selector', 'click to select'))
+        console.log(options)
+
+        const items = []
+
+        items.push(new menuItem ('title', this.title))
+        items.push(new menuItem ('selector', 'click to select'))
 
         options.forEach(option => {
-            this.items.push(new menuItem ('selectable', option))
+            items.push(new menuItem ('selectable', option))
         });
+
+        this.items = items
     }
 
     getSelectedItemIndex(){
