@@ -1,6 +1,6 @@
 window.onload = async function(){
     
-    display.setup()
+    //display.setup()
     displays.loadSME()
 }
 
@@ -28,9 +28,21 @@ function onItemClick(){
     }
 }
 
+function onItemHover(){
+    const hoverElement = d3.select(this)
+
+    //expand
+}
+
+
+function onItemOff(){}
+
 
 class displays {
+    
+    
     static sme = {}
+    static #windowControl = {}
 
     static loadSME (){
         const SMEs = [
@@ -39,12 +51,75 @@ class displays {
             'Freelance Profressional'
         ]
 
-        this.sme = new menu ('SME', SMEs)
-        this.sme.render()
+        this.sme = new display ('SME', SMEs)
+        //this.sme = new menu ('SME', SMEs)
+        //this.sme.render()
+
+    }
+
+    expandMenu(){
+        const itemCount = this.sme.items.length
+        const height = menuItem.fontSize * itemCount
+        
+
+    }
+
+    contractMenu(){
 
     }
 
 }
+
+class display {
+
+    #windowControl = {}
+    #contentControl = {}
+
+    constructor(title, content){
+        this.title = title
+        this.content = content
+        this.setup()
+    }
+
+    setup(){  
+        this.#createWindow()
+        this.#createContent()
+        this.#fitToContentState()  
+    }
+
+    getCanvas(){
+        return this.#windowControl.svg
+    }
+
+    #createWindow(){
+        this.#windowControl = new windowControl()
+        this.#windowControl.createDiv(this.id)
+        this.#windowControl.createSVG(this.id)
+    }
+
+    #createContent(){
+        this.#contentControl = new menu (this.title, this.content)
+        this.#contentControl.render()
+    }
+
+    #fitToContentState(contentState = 'contracted'){
+        let width = window.innerWidth
+        let height = 0
+
+        switch(contentState){
+            case 'contracted':
+                height = menuItem.fontSize + 10
+                break;
+            case ' expanded':
+                height = menuItem.fontSize * this.#contentControl.items.length + 10
+        }
+
+        this.#windowControl.resize({width: width, height: height})
+
+    }
+
+}
+
 
 class menu {
     items = []
@@ -73,6 +148,11 @@ class menu {
 
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
+        const onFunctions = {
+            mouseOver: onItemHover,
+            mouseOut: onItemOff,
+            click: onItemClick
+        }
         
         svg.selectAll('g.sme')
             .data(this.items, d => d.label)
@@ -156,58 +236,7 @@ class menuItem {
     }
 }
 
-class scenario {
 
-
-
-}
-
-class sme {
-
-    constructor(type){
-        this.type = type
-        this.selected = false
-    }
-
-    select(){
-        this.selected = true
-    }
-
-    deselect(){
-        this.selected = false
-    }
-
-    toggleSelection(){
-        this.selected = this.selected === false ? true : false
-    }
-
-
-}
-
-class display {
-
-    static #windowControl = {}
-
-    static setup(){
-        this.#windowControl = new windowControl()
-        this.#createWindow()
-        this.#setDimensions()
-    }
-
-    static getCanvas(){
-        return this.#windowControl.svg
-    }
-
-    static #createWindow(){
-        this.#windowControl.createDiv('display')
-        this.#windowControl.createSVG('display')
-    }
-
-    static #setDimensions(){
-        this.#windowControl.resize({width: window.innerWidth, height: window.innerHeight})
-    }
-
-}
 
 class windowControl {
     
