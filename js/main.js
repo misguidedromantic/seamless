@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1655')
+    console.log('1701')
     displays.loadSME()
 }
 
@@ -186,7 +186,18 @@ class menu {
                     return groups
                 },
 
-                update => update,
+                update => {
+                    
+                    const groups = update.selectAll('g')
+                        .transition('itemOrder')
+                        .duration(1000)
+                        .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
+
+                    groups.selectAll('text')
+                        .style('font-weight', d => styling.getFontWeight(d))
+
+                    return groups
+                },
                 exit => exit
             )
     }
@@ -208,6 +219,10 @@ class menuItemStyling {
             default:
                 return 'black'
         }
+    }
+
+    getFontWeight(d){
+        return d.selected ? 'bold' : 'normal'
     }
 }
 
