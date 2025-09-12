@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1130')
+    console.log('1154')
     displays.loadSME()
 }
 
@@ -115,8 +115,6 @@ class display {
     }
 
     #createContent(){
-        console.log(this.title)
-        console.log(this.content)
         this.#contentControl = new menu (this.title, this.content)
     }
 }
@@ -157,11 +155,14 @@ class menu {
             .data(this.items, d => d.label)
             .join(
                 enter => {
+
+                    console.log ('enter')
+
                     const groups = enter.append('g')
                         .attr('class', 'sme')
                         .attr('id', d => d.label)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        .on('click', onClick)
+                        //.on('click', onClick)
 
                     groups.append('text')
                         .text(d => d.label)
@@ -170,7 +171,10 @@ class menu {
                         .attr('dy', 9)
                     
                     return groups
-                }
+                },
+
+                update => update,
+                exit => exit
             )
     }
 
