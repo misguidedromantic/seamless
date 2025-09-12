@@ -1,3 +1,5 @@
+const gRatio = 1.618
+
 window.onload = async function(){
     console.log('1521')
     displays.loadSME()
@@ -88,15 +90,15 @@ class display {
     }
 
     fitToContentState(contentState = 'contracted'){
-        let width = window.innerWidth
+        let width = window.innerWidth - (window.innerWidth / gRatio)
         let height = 0
 
         switch(contentState){
             case 'contracted':
-                height = menuItem.fontSize + 10
+                height = menuItem.fontSize + 500
                 break;
             case 'expanded':
-                height = menuItem.fontSize * this.#contentControl.items.length + 10
+                height = menuItem.fontSize * this.#contentControl.items.length + 100
                 break;
         }
 
@@ -112,6 +114,7 @@ class display {
         this.#windowControl = new windowControl()
         this.#windowControl.createDiv(this.title)
         this.#windowControl.createSVG(this.title)
+        this.#windowControl.reposition(0, window.innerHeight - (window.innerHeight / gRatio))
     }
 
     #createContent(){
@@ -209,7 +212,6 @@ class menuItemPositioning {
     }
 
     getTranslate(d, i){
-        console.log(d)
         const x = this.getPosX()
         const y = this.getPosY(d, i)
         return d3Helper.getTranslateString(x, y)
@@ -220,11 +222,34 @@ class menuItemPositioning {
     }
     
     getPosY(d, i){
-        if(this.getSelectedItemIndex() === -1){
-            return 150 + (i + 1) * menuItem.fontSize * 2
-        } else {
-            return 150 + d.selected ? menuItem.fontSize * 2 : -50
+
+        const listPos = this.getListPosition(d, i)
+        return listPos * menuItem.fontSize
+
+    }
+
+    getListPosition(d, i){
+        const selectedi = this.getSelectedItemIndex()
+        console.log(selectedi)
+        
+        switch(d.type){
+            case 'title':
+            case 'selector':
+                return 0
+            default:
+                if(this.getSelectedItemIndex() === -1){
+                    return i - 1
+                }
+
+                if(this.getSelectedItemIndex() < i){
+                    return i
+                }
+
+                if(this.getSelectedItemIndex() > i){
+                    return i - 1
+                }
         }
+
     }
 
     getSelectedItemIndex(){
@@ -266,6 +291,10 @@ class windowControl {
     resize(dimensions){
         this.resizeDiv(dimensions.width, dimensions.height)
         this.resizeSVG(dimensions.width, dimensions.height)
+    }
+
+    reposition(left, top){
+        this.reposition(left, top)
     }
 
     resizeDiv(width, height){
@@ -330,6 +359,13 @@ class div {
         elem.transition(transition)
             .style('width', width + 'px')
             .style('height', height + 'px')
+    }
+
+    reposition(left, top, transition){
+        const elem = this.getElement()
+        elem.transition(transition)
+            .style('left', left + 'px')
+            .style('top', top + 'px')
     }
 
 }
