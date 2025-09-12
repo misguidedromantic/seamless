@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1017')
+    console.log('1037')
     displays.loadSME()
 }
 
@@ -28,18 +28,19 @@ function onItemClick(){
 }
 
 function onItemHover(){
+    console.log('hover')
     displays.expandSME()
 }
 
 
-function onItemOff(){}
+function onItemOff(){
+
+}
 
 
 class displays {
     
-    
     static sme = {}
-    static #windowControl = {}
 
     static loadSME (){
         const SMEs = [
@@ -139,11 +140,7 @@ class menu {
 
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
-        const onFunctions = {
-            mouseOver: onItemHover,
-            mouseOut: onItemOff,
-            click: onItemClick
-        }
+        const mouseover = onItemHover
         
         svg.selectAll('g.sme')
             .data(this.items, d => d.label)
@@ -153,7 +150,7 @@ class menu {
                         .attr('class', 'sme')
                         .attr('id', d => d.label)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        .on('mouseover', onItemHover)
+                        .on('mouseover', mouseover)
 
                     groups.append('text')
                         .text(d => d.label)
