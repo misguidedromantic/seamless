@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1154')
+    console.log('1158')
     displays.loadSME()
 }
 
@@ -145,18 +145,18 @@ class menu {
 
     render(svg){
 
-        console.log('render')
-
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
         const onClick = onItemClick()
+
+        
 
         svg.selectAll('g.sme')
             .data(this.items, d => d.label)
             .join(
                 enter => {
 
-                    console.log ('enter')
+                    console.log(enter.data())
 
                     const groups = enter.append('g')
                         .attr('class', 'sme')
@@ -205,6 +205,7 @@ class menuItemPositioning {
     }
 
     getTranslate(d, i){
+        console.log(d)
         const x = this.getPosX()
         const y = this.getPosY(d, i)
         return d3Helper.getTranslateString(x, y)
