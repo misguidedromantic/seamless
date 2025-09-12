@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1107')
+    console.log('1124')
     displays.loadSME()
 }
 
@@ -115,6 +115,8 @@ class display {
     }
 
     #createContent(){
+        console.log(this.title)
+        console.log(this.content)
         this.#contentControl = new menu (this.title, this.content)
     }
 
