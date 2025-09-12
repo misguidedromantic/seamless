@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1124')
+    console.log('1130')
     displays.loadSME()
 }
 
@@ -53,7 +53,7 @@ class displays {
         ]
 
         this.sme = new display ('SME', SMEs)
-        this.sme.fitToContentState()
+        this.sme.load()
     }
 
     static expandSME(){
@@ -119,8 +119,6 @@ class display {
         console.log(this.content)
         this.#contentControl = new menu (this.title, this.content)
     }
-
-
 }
 
 
