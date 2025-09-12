@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1208')
+    console.log('1521')
     displays.loadSME()
 }
 
@@ -83,7 +83,7 @@ class display {
     }
 
     load(){
-        this.#contentControl.render(d3.select('#SMEsvg'))
+        this.#contentControl.render(d3.select('#SMESvg'))
         this.fitToContentState()
     }
 
@@ -128,10 +128,10 @@ class menu {
     constructor(title, options){
         this.title = title
         this.createItems(options)
+        
     }
 
     createItems(options){
-        console.log(options)
 
         const items = []
 
@@ -150,19 +150,17 @@ class menu {
     }
 
     render(svg){
-
+        console.log(this.items)
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
         const onClick = onItemClick()
 
-        
+
 
         svg.selectAll('g.sme')
             .data(this.items, d => d.label)
             .join(
                 enter => {
-
-                    console.log(enter.data())
 
                     const groups = enter.append('g')
                         .attr('class', 'sme')
