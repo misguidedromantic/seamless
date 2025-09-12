@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1037')
+    console.log('1054')
     displays.loadSME()
 }
 
@@ -50,6 +50,7 @@ class displays {
         ]
 
         this.sme = new display ('SME', SMEs)
+        this.sme.fitToContentState()
     }
 
     static expandSME(){
@@ -76,7 +77,28 @@ class display {
     setup(){  
         this.#createWindow()
         this.#createContent()
-        this.fitToContentState()  
+    }
+
+    load(){
+        this.#contentControl.render()
+        this.fitToContentState()
+    }
+
+    fitToContentState(contentState = 'contracted'){
+        let width = 0
+        let height = window.innerWidth
+
+        switch(contentState){
+            case 'contracted':
+                height = menuItem.fontSize + 10
+                break;
+            case 'expanded':
+                height = menuItem.fontSize * this.#contentControl.items.length + 10
+                break;
+        }
+
+        this.#windowControl.resize({width: width, height: height})
+
     }
 
     getCanvas(){
@@ -85,30 +107,14 @@ class display {
 
     #createWindow(){
         this.#windowControl = new windowControl()
-        this.#windowControl.createDiv(this.id)
-        this.#windowControl.createSVG(this.id)
+        this.#windowControl.createDiv(this.title)
+        this.#windowControl.createSVG(this.title)
     }
 
     #createContent(){
         this.#contentControl = new menu (this.title, this.content)
-        this.#contentControl.render()
     }
 
-    fitToContentState(contentState = 'contracted'){
-        let width = window.innerWidth
-        let height = 0
-
-        switch(contentState){
-            case 'contracted':
-                height = menuItem.fontSize + 10
-                break;
-            case ' expanded':
-                height = menuItem.fontSize * this.#contentControl.items.length + 10
-        }
-
-        this.#windowControl.resize({width: width, height: height})
-
-    }
 
 }
 
