@@ -147,6 +147,8 @@ class menu {
 
     render(svg){
 
+        console.log('render')
+
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
         const onClick = onItemClick()
@@ -257,7 +259,6 @@ class windowControl {
         this.resizeSVG(dimensions.width, dimensions.height)
     }
 
-
     resizeDiv(width, height){
         this.div.style('width', width + "px").style('height', height + "px")
     }
@@ -268,11 +269,10 @@ class windowControl {
 
 }
 
-class svg{
+class svg {
 
     width = 0
     height = 0
-    
 
     constructor(id, container = d3.select('body')){
         this.id = 'svg' + id
@@ -293,8 +293,6 @@ class svg{
         elem.attr('width', width)
             .attr('height', height)
     }
-
-
 }
 
 class div {
