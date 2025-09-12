@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1521')
+    console.log('1655')
     displays.loadSME()
 }
 
@@ -33,7 +33,14 @@ function onItemClick(){
 
 function onItemHover(){
     console.log('hover')
-    displays.expandSME()
+    const g = d3.select('#Click to select')
+
+    g.selectAll('text')
+        .transition()
+        .duration(1000)
+        .style('fill', 'grey')
+        
+    //displays.expandSME()
 }
 
 
@@ -174,7 +181,7 @@ class menu {
                         .text(d => d.label)
                         .style('fill', d => styling.getTextColour(d))
                         .attr('dx', 15)
-                        .attr('dy', 9)
+                        .attr('dy', menuItem.fontSize)
                     
                     return groups
                 },
@@ -197,7 +204,7 @@ class menuItemStyling {
             case 'title':
                 return 'blue'
             case 'selector':
-                return 'grey'
+                return 'beige'
             default:
                 return 'black'
         }
@@ -211,13 +218,17 @@ class menuItemPositioning {
     }
 
     getTranslate(d, i){
-        const x = this.getPosX()
+        const x = this.getPosX(d)
         const y = this.getPosY(d, i)
         return d3Helper.getTranslateString(x, y)
     }
 
-    getPosX(){
-        return 10
+    getPosX(d){
+        
+        if(d.type === 'selector'){
+            return -30
+        } else {return 10}
+        
     }
     
     getPosY(d, i){
