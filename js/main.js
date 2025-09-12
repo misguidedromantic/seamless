@@ -6,7 +6,6 @@ window.onload = async function(){
 }
 
 function onItemClick(){
-    console.log('click')
     displays.expandSME()
 
         
@@ -156,7 +155,7 @@ class menu {
         console.log(this.items)
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
-        const onClick = onItemClick()
+        const onClick = onItemClick
 
 
 
@@ -222,10 +221,8 @@ class menuItemPositioning {
     }
     
     getPosY(d, i){
-
         const listPos = this.getListPosition(d, i)
-        return listPos * menuItem.fontSize
-
+        return listPos * menuItem.fontSize * 2
     }
 
     getListPosition(d, i){
@@ -278,7 +275,7 @@ class windowControl {
     svgHeight = 0
 
     createDiv(id, container = d3.select('body')){
-        this.div = container.append('div').attr('id', id + 'Div')
+        this.div = container.append('div').attr('id', id + 'Div').style('position', 'absolute')
     }
     
     createSVG(id, container = this.div){
@@ -300,69 +297,6 @@ class windowControl {
 
     resizeSVG(width, height){
         this.svg.attr('width', width).attr('height', height)
-    }
-
-}
-
-class svg {
-
-    width = 0
-    height = 0
-
-    constructor(id, container = d3.select('body')){
-        this.id = 'svg' + id
-        this.container = container
-        this.createElement()
-    }
-    createElement(width = 10, height = 10){
-        this.container.append('svg')
-            .attr('id', this.id)
-    }
-
-    getElement(){
-        return d3.select('#' + this.id)
-    }
-
-    resize(width, height){
-        const elem = this.getElement()
-        elem.attr('width', width)
-            .attr('height', height)
-    }
-}
-
-class div {
-
-    width = 0
-    height = 0
-    top = 0
-    left = 0
-    
-    constructor(id, container = d3.select('body')){
-        this.id = 'div' + id
-        this.container = container
-        this.createElement(id)
-    }
-
-    createElement(){
-        this.container.append('div').attr('id', this.id)
-    }
-
-    getElement(){
-        return d3.select('#' + this.id)
-    }
-
-    resize(width, height, transition){
-        const elem = this.getElement()
-        elem.transition(transition)
-            .style('width', width + 'px')
-            .style('height', height + 'px')
-    }
-
-    reposition(left, top, transition){
-        const elem = this.getElement()
-        elem.transition(transition)
-            .style('left', left + 'px')
-            .style('top', top + 'px')
     }
 
 }
