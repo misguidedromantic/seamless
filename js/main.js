@@ -88,8 +88,8 @@ class display {
     }
 
     fitToContentState(contentState = 'contracted'){
-        let width = 0
-        let height = window.innerWidth
+        let width = window.innerWidth
+        let height = 0
 
         switch(contentState){
             case 'contracted':
