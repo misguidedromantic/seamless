@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1016')
+    console.log('1017')
     displays.loadSME()
 }
 
@@ -75,7 +75,7 @@ class display {
     setup(){  
         this.#createWindow()
         this.#createContent()
-        this.#fitToContentState()  
+        this.fitToContentState()  
     }
 
     getCanvas(){
