@@ -1,6 +1,5 @@
 window.onload = async function(){
-    
-    //display.setup()
+    console.log('1014')
     displays.loadSME()
 }
 
@@ -29,9 +28,7 @@ function onItemClick(){
 }
 
 function onItemHover(){
-    const hoverElement = d3.select(this)
-
-    //expand
+    displays.expandSME()
 }
 
 
@@ -52,20 +49,14 @@ class displays {
         ]
 
         this.sme = new display ('SME', SMEs)
-        //this.sme = new menu ('SME', SMEs)
-        //this.sme.render()
-
     }
 
-    expandMenu(){
-        const itemCount = this.sme.items.length
-        const height = menuItem.fontSize * itemCount
-        
-
+    static expandSME(){
+        this.sme.fitToContentState('expanded')
     }
 
-    contractMenu(){
-
+    static contractSME(){
+        this.sme.fitToContentState('contracted')
     }
 
 }
@@ -102,7 +93,7 @@ class display {
         this.#contentControl.render()
     }
 
-    #fitToContentState(contentState = 'contracted'){
+    fitToContentState(contentState = 'contracted'){
         let width = window.innerWidth
         let height = 0
 
