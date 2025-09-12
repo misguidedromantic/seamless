@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1014')
+    console.log('1016')
     displays.loadSME()
 }
 
@@ -153,7 +153,7 @@ class menu {
                         .attr('class', 'sme')
                         .attr('id', d => d.label)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        .on('click', onItemClick)
+                        .on('mouseover', onItemHover)
 
                     groups.append('text')
                         .text(d => d.label)
