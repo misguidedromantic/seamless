@@ -1,11 +1,14 @@
 window.onload = async function(){
-    console.log('1054')
+    console.log('1101')
     displays.loadSME()
 }
 
 function onItemClick(){
+    console.log('click')
+    displays.expandSME()
+
         
-    const clickedElement = d3.select(this)
+/*     const clickedElement = d3.select(this)
     let i = undefined
     try{
         const id = clickedElement.attr('id')
@@ -24,7 +27,7 @@ function onItemClick(){
                     data[j].selected = false
             }
         }
-    }
+    } */
 }
 
 function onItemHover(){
@@ -80,7 +83,7 @@ class display {
     }
 
     load(){
-        this.#contentControl.render()
+        this.#contentControl.render(d3.select('#SMEsvg'))
         this.fitToContentState()
     }
 
@@ -142,12 +145,12 @@ class menu {
         return this.items.findIndex(item => item.selected === true)
     }
 
-    render(svg = d3.select('#displaySvg')){
+    render(svg){
 
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
-        const mouseover = onItemHover
-        
+        const onClick = onItemClick()
+
         svg.selectAll('g.sme')
             .data(this.items, d => d.label)
             .join(
@@ -156,7 +159,7 @@ class menu {
                         .attr('class', 'sme')
                         .attr('id', d => d.label)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        .on('mouseover', mouseover)
+                        .on('click', onClick)
 
                     groups.append('text')
                         .text(d => d.label)
