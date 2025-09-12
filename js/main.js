@@ -1,5 +1,5 @@
 window.onload = async function(){
-    console.log('1101')
+    console.log('1107')
     displays.loadSME()
 }
 
