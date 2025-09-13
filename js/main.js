@@ -32,19 +32,52 @@ function onItemClick(){
 }
 
 function onItemHover(){
-    console.log('hover')
-    const g = d3.select('#Click to select')
+    const targetElem = d3.select(this)
 
-    g.selectAll('text')
+    if(targetElem.attr('id') === 'SME'){
+        const g = d3.select('#clicktoselect')
+        g.selectAll('text')
         .transition()
-        .duration(1000)
-        .style('fill', 'grey')
+        .duration(350)
+        .tween('text', function() {
+            const newText = 'click to select'
+            let textLength = newText.length;
+            return function (t) {
+                this.textContent = newText.slice(0, Math.round(t * textLength));
+            }
+        })
+    } else {
+        targetElem.selectAll('text').attr('font-weight', 'bold')
+    }
+
+    
+    
         
     //displays.expandSME()
 }
 
 
 function onItemOff(){
+    const targetElem = d3.select(this)
+    console.log(targetElem.attr('id'))
+
+
+    const g = d3.select('#clicktoselect')
+    g.selectAll('text')
+        .transition()
+        .duration(350)
+        .tween('text', function() {
+            const oldText = 'click to select'
+            const newText = ''
+            let textLength = oldText.length;
+            return function (t) {
+                this.textContent = oldText.slice(0, textLength - Math.round(t * textLength));
+            }
+        })
+
+}
+
+function tweenWord(){
 
 }
 
@@ -96,15 +129,15 @@ class display {
     }
 
     fitToContentState(contentState = 'contracted'){
-        let width = window.innerWidth - (window.innerWidth / gRatio)
+        let width = Math.round(window.innerWidth - (window.innerWidth / gRatio))
         let height = 0
 
         switch(contentState){
             case 'contracted':
-                height = menuItem.fontSize + 500
+                height = menuItem.fontSize + 2
                 break;
             case 'expanded':
-                height = menuItem.fontSize * this.#contentControl.items.length + 100
+                height = (this.#contentControl.items.length - 1) * Math.round(menuItem.fontSize * gRatio)
                 break;
         }
 
@@ -159,26 +192,24 @@ class menu {
     }
 
     render(svg){
-        console.log(this.items)
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
-        const onClick = onItemClick
-
-
 
         svg.selectAll('g.sme')
-            .data(this.items, d => d.label)
+            .data(this.items, d => d.id)
             .join(
                 enter => {
 
                     const groups = enter.append('g')
                         .attr('class', 'sme')
-                        .attr('id', d => d.label)
+                        .attr('id', d => d.id)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        //.on('click', onClick)
+                        .on('mouseover', onItemHover)
+                        .on('mouseout', onItemOff)
+                        .on('click', onItemClick)
 
                     groups.append('text')
-                        .text(d => d.label)
+                        .text(d => d.type !== 'selector' ? d.label : '')
                         .style('fill', d => styling.getTextColour(d))
                         .attr('dx', 15)
                         .attr('dy', menuItem.fontSize)
@@ -215,7 +246,7 @@ class menuItemStyling {
             case 'title':
                 return 'blue'
             case 'selector':
-                return 'beige'
+                return 'grey'
             default:
                 return 'black'
         }
@@ -241,14 +272,14 @@ class menuItemPositioning {
     getPosX(d){
         
         if(d.type === 'selector'){
-            return -30
+            return 50
         } else {return 10}
         
     }
     
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
-        return listPos * menuItem.fontSize * 2
+        return listPos * Math.round(menuItem.fontSize * 1.618)
     }
 
     getListPosition(d, i){
@@ -280,12 +311,18 @@ class menuItemPositioning {
 
 class menuItem {
 
-    static fontSize = 11
+    static fontSize = 12
 
     constructor(type, label){
         this.type = type
         this.label = label
         this.selected = false
+        this.generateID()
+    }
+
+    generateID(){
+        const arr = this.label.split(' ')
+        this.id = arr.join('')
     }
 }
 
@@ -308,8 +345,8 @@ class windowControl {
         this.svg = container.append('svg').attr('id', id + 'Svg')
     }
 
-    resize(dimensions){
-        this.resizeDiv(dimensions.width, dimensions.height)
+    resize(dimensions, duration){
+        this.resizeDiv(dimensions.width, dimensions.height, duration)
         this.resizeSVG(dimensions.width, dimensions.height)
     }
 
@@ -318,7 +355,10 @@ class windowControl {
     }
 
     resizeDiv(width, height){
-        this.div.style('width', width + "px").style('height', height + "px")
+        this.div.transition()
+            .ease(d3.easeCubicInOut)
+            .duration(500)
+            .style('width', width + "px").style('height', height + "px")
     }
 
     resizeSVG(width, height){
