@@ -8,36 +8,21 @@ window.onload = async function(){
 function onItemClick(){
     displays.expandSME()
 
-        
-/*     const clickedElement = d3.select(this)
-    let i = undefined
-    try{
-        const id = clickedElement.attr('id')
-        i = data.findIndex(obj => obj.type === id)
-    } catch {
-        i = 1
-    } finally {
-        for(let j = 0; j < data.length; j++){
-            
-            switch(j){
-                case 0:
-                case i:
-                    data[j].selected = true
-                    break;
-                default:
-                    data[j].selected = false
-            }
-        }
-    } */
+    const targetElem = d3.select(this)
+    if(targetElem.attr('class') === 'sme selectable'){
+        displays.sme.selectMenuItem(targetElem.attr('id'))
+
+    }
+
+
 }
 
 function onItemHover(){
-    const targetElem = d3.select(this)
 
-    if(targetElem.attr('id') === 'SME'){
-        const g = d3.select('#clicktoselect')
-        g.selectAll('text')
-        .transition()
+    const selectorTextElem = d3.select('#clicktoselect').selectAll('text')
+    
+    if(selectorTextElem.text() === ''){
+        selectorTextElem.transition()
         .duration(350)
         .tween('text', function() {
             const newText = 'click to select'
@@ -46,19 +31,46 @@ function onItemHover(){
                 this.textContent = newText.slice(0, Math.round(t * textLength));
             }
         })
-    } else {
-        targetElem.selectAll('text').attr('font-weight', 'bold')
     }
 
-    
-    
-        
-    //displays.expandSME()
+    const targetElem = d3.select(this)
+
+    if(targetElem.attr('class') === 'sme selectable'){
+        const textElem = targetElem.selectAll('text')
+        textElem.attr('font-weight', 'bold')
+    }
+
+
+
 }
 
 
-function onItemOff(){
-    const targetElem = d3.select(this)
+function onItemOff(event){
+
+    const unselectedElements = d3.selectAll('g.sme.selectable').filter(d => d.selected === false)
+    unselectedElements.selectAll('text').attr('font-weight', 'normal')
+
+
+    const relatedElementGroup = d3.select(event.relatedTarget.parentNode)
+    console.log(relatedElementGroup)
+
+    const selectorTextElem = d3.select('#clicktoselect').selectAll('text')
+    
+    if(selectorTextElem.text() !== ''){
+        selectorTextElem.transition()
+        .duration(350)
+        .tween('text', function() {
+            const oldText = 'click to select'
+            const newText = ''
+            let textLength = oldText.length;
+            return function (t) {
+                this.textContent = oldText.slice(0, textLength - Math.round(t * textLength));
+            }
+        })
+    
+    }
+
+/*     const targetElem = d3.select(this)
     console.log(targetElem.attr('id'))
 
 
@@ -74,7 +86,7 @@ function onItemOff(){
                 this.textContent = oldText.slice(0, textLength - Math.round(t * textLength));
             }
         })
-
+ */
 }
 
 function tweenWord(){
@@ -128,21 +140,25 @@ class display {
         this.fitToContentState()
     }
 
+    selectMenuItem(itemID){
+        this.#contentControl.selectItem(itemID)
+        this.#contentControl.render(d3.select('#SMESvg'))
+        this.fitToContentState()
+    }
+
     fitToContentState(contentState = 'contracted'){
-        let width = Math.round(window.innerWidth - (window.innerWidth / gRatio))
-        let height = 0
-
-        switch(contentState){
-            case 'contracted':
-                height = menuItem.fontSize + 2
-                break;
-            case 'expanded':
-                height = (this.#contentControl.items.length - 1) * Math.round(menuItem.fontSize * gRatio)
-                break;
-        }
-
+        const multipler = this.#getHeightMultipler(contentState)
+        const width = Math.round(window.innerWidth - (window.innerWidth / gRatio))
+        const height = Math.round(menuItem.fontSize * gRatio) * multipler
         this.#windowControl.resize({width: width, height: height})
+    }
 
+    #getHeightMultipler(contentState){
+        if(contentState === 'contracted'){
+            return this.#contentControl.getSelectedItemIndex() > 0 ? 2 : 1     
+        } else {
+            return this.#contentControl.items.length - 1
+        }
     }
 
     getCanvas(){
@@ -187,6 +203,12 @@ class menu {
         this.items = items
     }
 
+    selectItem(id){
+        this.items.forEach(item => {
+            item.id === id ? item.selected = true : item.selected = false
+        })
+    }
+
     getSelectedItemIndex(){
         return this.items.findIndex(item => item.selected === true)
     }
@@ -201,11 +223,11 @@ class menu {
                 enter => {
 
                     const groups = enter.append('g')
-                        .attr('class', 'sme')
+                        .attr('class', d => 'sme ' + d.type)
                         .attr('id', d => d.id)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
                         .on('mouseover', onItemHover)
-                        .on('mouseout', onItemOff)
+                        .on('mouseout', (event, d) => onItemOff(event))
                         .on('click', onItemClick)
 
                     groups.append('text')
