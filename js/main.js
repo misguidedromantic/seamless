@@ -1,53 +1,46 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1701')
-    displays.loadSME()
+    displayManager.createDisplays()
+    displayManager.loadDisplay('SME')
+    displayManager.loadDisplay('Activity')
 }
 
 function onItemClick(){
-    displays.expandSME()
-
     const targetElem = d3.select(this)
-    if(targetElem.attr('class') === 'sme selectable'){
-        displays.sme.selectMenuItem(targetElem.attr('id'))
+    const classes = targetElem.attr('class').split(' ')
+    const displayTitle = classes[0]
+    thisDisplay = displayManager.getDisplay(displayTitle)
 
+    if(classes.includes('selectable')){
+        thisDisplay.selectItem(targetElem.attr('id'))
     }
 
+    if(classes.includes('title')){
+        thisDisplay.toggleExpansion()
+    }
 
 }
+
 
 function onItemHover(){
 
-    const selectorTextElem = d3.select('#clicktoselect').selectAll('text')
-    
-    if(selectorTextElem.text() === ''){
-        selectorTextElem.transition()
-        .duration(350)
-        .tween('text', function() {
-            const newText = 'click to select'
-            let textLength = newText.length;
-            return function (t) {
-                this.textContent = newText.slice(0, Math.round(t * textLength));
-            }
-        })
-    }
-
     const targetElem = d3.select(this)
+    const id = targetElem.attr('id')
+    
 
-    if(targetElem.attr('class') === 'sme selectable'){
-        const textElem = targetElem.selectAll('text')
-        textElem.attr('font-weight', 'bold')
-    }
-
-
+    targetElem.attr('font-weight','bold')
+    allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
+    allOtherElements.attr('font-weight','normal')
 
 }
 
 
-function onItemOff(event){
+function onItemOff(event, d){
+    const elem = d3.select('#' + d.id)
+    elem.attr('font-weight','normal')    
 
-    const unselectedElements = d3.selectAll('g.sme.selectable').filter(d => d.selected === false)
+/*     const unselectedElements = d3.selectAll('g.sme.selectable').filter(d => d.selected === false)
     unselectedElements.selectAll('text').attr('font-weight', 'normal')
 
 
@@ -69,7 +62,7 @@ function onItemOff(event){
         })
     
     }
-
+ */
 /*     const targetElem = d3.select(this)
     console.log(targetElem.attr('id'))
 
@@ -89,7 +82,30 @@ function onItemOff(event){
  */
 }
 
-function tweenWord(){
+
+class displayManager {
+
+    static createDisplays(){
+        const displayRow = [
+            new menu ('SME', smeData.types),
+            new menu ('Activity', activityData.types)
+        ]
+
+        for(let i = 0; i < displayRow.length; i++){
+            const thisDisplay = displayRow[i]
+            thisDisplay.setupWindow(i)
+            displays[thisDisplay.title] = thisDisplay
+        }
+    }
+
+    static loadDisplay(displayTitle){
+        displays[displayTitle].load()
+    }
+
+    static getDisplay(displayTitle){
+        return displays[displayTitle]
+    }
+
 
 }
 
@@ -97,96 +113,86 @@ function tweenWord(){
 class displays {
     
     static sme = {}
-
-    static loadSME (){
-        const SMEs = [
-            'Side Hustle',
-            'Construction Company',
-            'Freelance Profressional'
-        ]
-
-        this.sme = new display ('SME', SMEs)
-        this.sme.load()
-    }
-
-    static expandSME(){
-        this.sme.fitToContentState('expanded')
-    }
-
-    static contractSME(){
-        this.sme.fitToContentState('contracted')
-    }
+    static activity = {}
 
 }
 
-class display {
-
-    #windowControl = {}
-    #contentControl = {}
-
-    constructor(title, content){
-        this.title = title
-        this.content = content
-        this.setup()
-    }
-
-    setup(){  
-        this.#createWindow()
-        this.#createContent()
-    }
-
-    load(){
-        this.#contentControl.render(d3.select('#SMESvg'))
-        this.fitToContentState()
-    }
-
-    selectMenuItem(itemID){
-        this.#contentControl.selectItem(itemID)
-        this.#contentControl.render(d3.select('#SMESvg'))
-        this.fitToContentState()
-    }
-
-    fitToContentState(contentState = 'contracted'){
-        const multipler = this.#getHeightMultipler(contentState)
-        const width = Math.round(window.innerWidth - (window.innerWidth / gRatio))
-        const height = Math.round(menuItem.fontSize * gRatio) * multipler
-        this.#windowControl.resize({width: width, height: height})
-    }
-
-    #getHeightMultipler(contentState){
-        if(contentState === 'contracted'){
-            return this.#contentControl.getSelectedItemIndex() > 0 ? 2 : 1     
-        } else {
-            return this.#contentControl.items.length - 1
-        }
-    }
-
-    getCanvas(){
-        return this.#windowControl.svg
-    }
-
-    #createWindow(){
-        this.#windowControl = new windowControl()
-        this.#windowControl.createDiv(this.title)
-        this.#windowControl.createSVG(this.title)
-        this.#windowControl.reposition(0, window.innerHeight - (window.innerHeight / gRatio))
-    }
-
-    #createContent(){
-        this.#contentControl = new menu (this.title, this.content)
-    }
+class smeData {
+    static types = [
+        'Side Hustle',
+        'Construction Company',
+        'Freelance Profressional'
+    ]
 }
 
+class activityData {
+    static types = [
+        'Setup financial systems',
+        'Establish business',
+        'Sell to customer',
+        'Purchase materials',
+        'Pay employees',
+    ]
+}
 
 class menu {
     items = []
-    maxHeight = 0
-    maxWidth = 0
+    height = menuItem.fontSize 
+    top = 0
+    width = 200
+    windowControl = {}
+    expansionState = 'contracted'
 
     constructor(title, options){
         this.title = title
         this.createItems(options)
-        
+    }
+
+    setupWindow(windowPosNum){
+        this.windowControl = new windowControl()
+        this.windowControl.createDiv(this.title)
+        this.windowControl.createSVG(this.title)
+        this.setPosition(windowPosNum)
+    }
+
+    load(){
+        this.contractView()
+        this.renderItems()
+    }
+
+    toggleExpansion(){
+        this.expansionState === 'contracted' ? this.expandView() : this.contractView()
+    }
+
+    expandView(){
+        this.height = this.getHeight('expanded')
+        this.windowControl.resizeDiv(this.width, this.height)
+        this.expansionState = 'expanded'
+    }
+
+    contractView(){
+        this.height = this.getHeight('contracted')
+        this.windowControl.resizeDiv(this.width, this.height)
+        this.expansionState = 'contracted'
+    }
+
+    setPosition(windowPosNum){
+        this.left = windowPosNum * this.width
+        this.top = window.innerHeight - (window.innerHeight / gRatio)
+        this.windowControl.reposition(this.left, this.top)
+    }
+
+    getHeight(viewType){
+        const multipler = this.#getHeightMultipler(viewType)
+        return Math.round(menuItem.fontSize * gRatio) * multipler  
+    }
+
+    #getHeightMultipler(viewType){
+        if(viewType === 'contracted'){
+            return this.getSelectedItemIndex() > 0 ? 2 : 1     
+        } else {
+            return this.items.length
+        }
     }
 
     createItems(options){
@@ -194,7 +200,7 @@ class menu {
         const items = []
 
         items.push(new menuItem ('title', this.title))
-        items.push(new menuItem ('selector', 'click to select'))
+        //items.push(new menuItem ('selector', 'no selection'))
 
         options.forEach(option => {
             items.push(new menuItem ('selectable', option))
@@ -207,27 +213,31 @@ class menu {
         this.items.forEach(item => {
             item.id === id ? item.selected = true : item.selected = false
         })
+
+        this.renderItems()
+        this.contractView()
     }
 
     getSelectedItemIndex(){
         return this.items.findIndex(item => item.selected === true)
     }
 
-    render(svg){
+    renderItems(){
+        const svg = this.windowControl.svg
         const positioning = new menuItemPositioning (this.items)
         const styling = new menuItemStyling (this.items)
 
-        svg.selectAll('g.sme')
+        svg.selectAll('g.' + this.title)
             .data(this.items, d => d.id)
             .join(
                 enter => {
 
                     const groups = enter.append('g')
-                        .attr('class', d => 'sme ' + d.type)
+                        .attr('class', d => this.title + ' ' + d.type)
                         .attr('id', d => d.id)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
                         .on('mouseover', onItemHover)
-                        .on('mouseout', (event, d) => onItemOff(event))
+                        .on('mouseout', (event, d) => onItemOff(event, d))
                         .on('click', onItemClick)
 
                     groups.append('text')
@@ -240,16 +250,16 @@ class menu {
                 },
 
                 update => {
-                    
-                    const groups = update.selectAll('g')
+
+                    update
                         .transition('itemOrder')
-                        .duration(1000)
+                        .duration(350)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
 
-                    groups.selectAll('text')
+                    /* groups.selectAll('text')
                         .style('font-weight', d => styling.getFontWeight(d))
-
-                    return groups
+ */
+                    
                 },
                 exit => exit
             )
@@ -305,23 +315,27 @@ class menuItemPositioning {
     }
 
     getListPosition(d, i){
-        switch(d.type){
-            case 'title':
-            case 'selector':
-                return 0
-            default:
-                if(this.getSelectedItemIndex() === -1){
-                    return i - 1
-                }
+        const selectedIndex = this.getSelectedItemIndex()
 
-                if(this.getSelectedItemIndex() < i){
-                    return i
-                }
-
-                if(this.getSelectedItemIndex() > i){
-                    return i - 1
-                }
+        if(d.id === 'SideHustle'){
+            console.log(i)
+            console.log(selectedIndex)
         }
+
+        if(selectedIndex < i){
+            return d.type === 'selectable' ? i : i
+        }
+
+        if(selectedIndex === i){
+            return 1
+        }
+
+        if(selectedIndex > i){
+            return d.type === 'selectable' ? i + 1 : i
+        }
+
+
+
 
     }
 
@@ -365,6 +379,11 @@ class windowControl {
     
     createSVG(id, container = this.div){
         this.svg = container.append('svg').attr('id', id + 'Svg')
+    }
+
+    getWidth(){
+        const widthText = d3.select(this.div).style('width')
+        return widthText.slice(0, widthText.indexOf('px'))
     }
 
     resize(dimensions, duration){
