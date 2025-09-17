@@ -3,7 +3,19 @@ const gRatio = 1.618
 window.onload = async function(){
     displayManager.createDisplays()
     displayManager.loadDisplay('SME')
-    displayManager.loadDisplay('Activity')
+}
+
+function onItemHover(){
+    const targetElem = d3.select(this)
+    const id = targetElem.attr('id')
+    targetElem.attr('font-weight','bold')
+    allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
+    allOtherElements.attr('font-weight','normal')
+}
+
+function onItemOff(event, d){
+    const elem = d3.select('#' + d.id)
+    elem.attr('font-weight','normal')    
 }
 
 function onItemClick(){
@@ -11,90 +23,39 @@ function onItemClick(){
     const classes = targetElem.attr('class').split(' ')
     const displayTitle = classes[0]
     thisDisplay = displayManager.getDisplay(displayTitle)
-
-    if(classes.includes('selectable')){
-        thisDisplay.selectItem(targetElem.attr('id'))
-    }
-
-    if(classes.includes('title')){
-        thisDisplay.toggleExpansion()
+    
+    if(thisDisplay.constructor.name === 'menu'){
+        thisDisplay.itemClicked(targetElem)
     }
 
 }
 
 
-function onItemHover(){
-
-    const targetElem = d3.select(this)
-    const id = targetElem.attr('id')
-    
-
-    targetElem.attr('font-weight','bold')
-    allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
-    allOtherElements.attr('font-weight','normal')
-
-}
 
 
-function onItemOff(event, d){
-    const elem = d3.select('#' + d.id)
-    elem.attr('font-weight','normal')    
-
-/*     const unselectedElements = d3.selectAll('g.sme.selectable').filter(d => d.selected === false)
-    unselectedElements.selectAll('text').attr('font-weight', 'normal')
 
 
-    const relatedElementGroup = d3.select(event.relatedTarget.parentNode)
-    console.log(relatedElementGroup)
-
-    const selectorTextElem = d3.select('#clicktoselect').selectAll('text')
-    
-    if(selectorTextElem.text() !== ''){
-        selectorTextElem.transition()
-        .duration(350)
-        .tween('text', function() {
-            const oldText = 'click to select'
-            const newText = ''
-            let textLength = oldText.length;
-            return function (t) {
-                this.textContent = oldText.slice(0, textLength - Math.round(t * textLength));
-            }
-        })
-    
-    }
- */
-/*     const targetElem = d3.select(this)
-    console.log(targetElem.attr('id'))
-
-
-    const g = d3.select('#clicktoselect')
-    g.selectAll('text')
-        .transition()
-        .duration(350)
-        .tween('text', function() {
-            const oldText = 'click to select'
-            const newText = ''
-            let textLength = oldText.length;
-            return function (t) {
-                this.textContent = oldText.slice(0, textLength - Math.round(t * textLength));
-            }
-        })
- */
-}
 
 
 class displayManager {
 
     static createDisplays(){
         const displayRow = [
-            new menu ('SME', smeData.types),
-            new menu ('Activity', activityData.types)
+            new menu ('SME', smeData),
+            new menu ('Activity', activityData)
         ]
 
         for(let i = 0; i < displayRow.length; i++){
             const thisDisplay = displayRow[i]
-            thisDisplay.setupWindow(i)
+            thisDisplay.setup(i)
             displays[thisDisplay.title] = thisDisplay
+        }
+    }
+
+    static selectionTrigger (sourceDisplayTitle, sourceSelection){
+        switch(sourceDisplayTitle){
+            case 'SME':
+                displays.activity.load()
         }
     }
 
@@ -118,21 +79,41 @@ class displays {
 }
 
 class smeData {
-    static types = [
-        'Side Hustle',
-        'Construction Company',
-        'Freelance Profressional'
+    static get(){
+        return this.#types
+    }
+
+    static #types = [
+        'Side hustle',
+        'Construction company',
+        'Freelance profressional'
     ]
 }
 
 class activityData {
-    static types = [
-        'Setup financial systems',
-        'Establish business',
-        'Sell to customer',
-        'Purchase materials',
-        'Pay employees',
-    ]
+    static get (smeType){
+        const activities = []
+        switch(smeType){
+            default:
+            case 'Construction company':
+                activities.push('paying employees')
+            case 'Freelance profressional':
+                activities.push('buying equipment')
+            case 'Side hustle':
+                activities.push('selling to a customer')
+                activities.push('starting the business')
+                activities.push('setting up fin. mgmt. systems')
+        }
+        return activities
+    }
+}
+
+class obligationData {
+
+    static get (){
+
+    }
+
 }
 
 class menu {
@@ -140,100 +121,136 @@ class menu {
     height = menuItem.fontSize 
     top = 0
     width = 200
-    windowControl = {}
+    dynamics = {}
+    dataSource = {}
     expansionState = 'contracted'
 
-    constructor(title, options){
+    constructor(title, dataSource){
         this.title = title
-        this.createItems(options)
+        this.dataSource = dataSource
+        
+    }
+
+    setup(windowPosNum){
+        this.createItems()
+        this.setupWindow(windowPosNum) 
+    }
+
+    createItems(){
+        const sourceItems = this.dataSource.get()
+        this.items.push(new menuItem ('title', this.title))
+        //items.push(new menuItem ('selector', 'no selection'))
+        sourceItems.forEach(option => {
+            this.items.push(new menuItem ('selectable', option))
+        });
     }
 
     setupWindow(windowPosNum){
-        this.windowControl = new windowControl()
-        this.windowControl.createDiv(this.title)
-        this.windowControl.createSVG(this.title)
-        this.setPosition(windowPosNum)
+        const thisWindowControl = new windowControl()
+        thisWindowControl.createDiv(this.title)
+        thisWindowControl.createSVG(this.title)
+        this.dynamics = new menuDynamics(this.title, thisWindowControl)
+        this.dynamics.move(windowPosNum)
     }
 
     load(){
-        this.contractView()
-        this.renderItems()
+        this.dynamics.contract(this.items)
+        this.dynamics.renderItems(this.items)
     }
 
-    toggleExpansion(){
-        this.expansionState === 'contracted' ? this.expandView() : this.contractView()
-    }
+    itemClicked(clickedElem){
+        const clickedItem = clickedElem.data()[0]
 
-    expandView(){
-        this.height = this.getHeight('expanded')
-        this.windowControl.resizeDiv(this.width, this.height)
-        this.expansionState = 'expanded'
-    }
-
-    contractView(){
-        this.height = this.getHeight('contracted')
-        this.windowControl.resizeDiv(this.width, this.height)
-        this.expansionState = 'contracted'
-    }
-
-    setPosition(windowPosNum){
-        this.left = windowPosNum * this.width
-        this.top = window.innerHeight - (window.innerHeight / gRatio)
-        this.windowControl.reposition(this.left, this.top)
-    }
-
-    getHeight(viewType){
-        const multipler = this.#getHeightMultipler(viewType)
-        return Math.round(menuItem.fontSize * gRatio) * multipler  
-    }
-
-    #getHeightMultipler(viewType){
-        if(viewType === 'contracted'){
-            return this.getSelectedItemIndex() > 0 ? 2 : 1     
-        } else {
-            return this.items.length
+        switch(clickedItem.type){
+            case 'selectable':
+                this.updateSelection(clickedItem)
+                this.dynamics.renderItems(this.items)
+                break;
+            case 'title':
+                this.dynamics.expand(this.items)
+            default:
         }
     }
 
-    createItems(options){
-
-        const items = []
-
-        items.push(new menuItem ('title', this.title))
-        //items.push(new menuItem ('selector', 'no selection'))
-
-        options.forEach(option => {
-            items.push(new menuItem ('selectable', option))
-        });
-
-        this.items = items
+    updateSelection(clickedItem){
+         if(clickedItem.selected){
+            clickedItem.selected = false
+         } else {
+            clickedItem.selected = true 
+            this.deselectOtherItems(clickedItem.id)
+            this.dynamics.contract(this.items)
+         }
     }
 
-    selectItem(id){
-        this.items.forEach(item => {
-            item.id === id ? item.selected = true : item.selected = false
-        })
-
-        this.renderItems()
-        this.contractView()
+    deselectOtherItems(selectedID){
+        const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
+        remainingItems.map(obj => ({...obj, selected: false}))
     }
 
     getSelectedItemIndex(){
         return this.items.findIndex(item => item.selected === true)
     }
 
-    renderItems(){
-        const svg = this.windowControl.svg
-        const positioning = new menuItemPositioning (this.items)
-        const styling = new menuItemStyling (this.items)
+}
 
-        svg.selectAll('g.' + this.title)
-            .data(this.items, d => d.id)
+class menuDynamics {
+
+    constructor(menuTitle, windowControl){
+        this.menuTitle = menuTitle
+        this.windowControl = windowControl
+    }
+
+    expand(items){
+        const currentWidth = this.windowControl.getWidth()
+        const multipler = this.#calculateHeightMultipler('expanded', items)
+        const expandedHeight = this.#calculateHeight(multipler)
+        const dimensions = {width: currentWidth, height: expandedHeight}
+        this.windowControl.resize(dimensions, 400)
+    }
+    
+    contract(items){
+        const currentWidth = this.windowControl.getWidth()
+        const multipler = this.#calculateHeightMultipler('contracted', items)
+        const contractedHeight = this.#calculateHeight(multipler)
+        const dimensions = {width: currentWidth, height: contractedHeight}
+        this.windowControl.resize(dimensions, 400)
+    }
+
+    move(windowPosNum){
+        const currentWidth = this.windowControl.getWidth()
+        const left = windowPosNum * currentWidth
+        const top = window.innerHeight - (window.innerHeight / gRatio)
+        this.windowControl.reposition(left, top)
+    }
+
+    #calculateHeight(multipler){
+        return Math.round(menuItem.fontSize * gRatio) * multipler  
+    }
+
+    #calculateHeightMultipler(viewType, items){
+        if(viewType === 'contracted'){
+            return this.#getSelectedItemIndex(items) > 0 ? 2 : 1     
+        } else {
+            return items.length
+        }
+    }
+
+    #getSelectedItemIndex(items){
+        return items.findIndex(item => item.selected === true)    
+    }
+
+    renderItems(items){
+        const svg = this.windowControl.svg
+        const positioning = new menuItemPositioning (items)
+        const styling = new menuItemStyling (items)
+
+        svg.selectAll('g.' + this.menuTitle)
+            .data(items, d => d.id)
             .join(
                 enter => {
 
                     const groups = enter.append('g')
-                        .attr('class', d => this.title + ' ' + d.type)
+                        .attr('class', d => this.menuTitle + ' ' + d.type)
                         .attr('id', d => d.id)
                         .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
                         .on('mouseover', onItemHover)
@@ -265,8 +282,9 @@ class menu {
             )
     }
 
-}
 
+
+}
 
 class menuItemStyling {
     constructor(items){
@@ -382,7 +400,7 @@ class windowControl {
     }
 
     getWidth(){
-        const widthText = d3.select(this.div).style('width')
+        const widthText = this.div.style('width')
         return widthText.slice(0, widthText.indexOf('px'))
     }
 
@@ -413,3 +431,4 @@ class d3Helper {
         return "translate(" + x + "," + y + ")"
     }
 } 
+
