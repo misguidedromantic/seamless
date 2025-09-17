@@ -1,9 +1,165 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    displayManager.createDisplays()
-    displayManager.loadDisplay('SME')
+    displayManager.createSelectors()
+    //displayManager.positionSelectors()
+    //displayManager.loadSelector('smeSelector')
+    runTestSuite()
 }
+
+function runTestSuite(){
+
+    const printResults = function(allResults){
+        allResults.forEach(result => result.print())
+    }
+
+    const elementsCorrectlyCreated = function(checkElements){
+        const results = []
+
+        const idFound = function(domElem){
+            return domElem !== null
+        }
+
+        const typeMatch = function(domElem, checkElem){
+            try{return domElem.tagName === checkElem.tagName}
+            catch{return false}
+        }
+
+        const calculateResult = function(checkElem, domElem){
+            let result = 'fail'
+            let reason = ''
+
+            if(!idFound(domElem)){
+                reason = ' (not found)'
+            } else if (!typeMatch(domElem, checkElem)){
+                reason = ' (found as: ' + domElem.tagName + ')'
+            }
+
+            if(idFound(domElem, checkElem) && typeMatch(domElem, checkElem)){
+                result = 'pass'
+            }
+
+            return result + reason
+        }
+
+        checkElements.forEach(checkElem => {
+            const domElem = document.getElementById(checkElem.id)
+            const resultDescription = checkElem.id + ' created correctly'
+            results.push(new testResult(resultDescription, calculateResult(checkElem, domElem)))
+        })
+        
+        return results
+    }
+
+    const checkElements = [
+        new checkElement('smeSelectorDiv','div'),
+        new checkElement('smeSelectorSvg','svg'),
+        new checkElement('smeActivityDiv','div'),
+        new checkElement('smeActivitySvg','svg')
+    ]
+    
+    const testResults = elementsCorrectlyCreated(checkElements)
+    printResults(testResults)
+}
+
+class testResult {
+    constructor(description, result){
+        this.description = description
+        this.result = result
+    }
+
+    print(){
+        const message = this.description + ': ' + this.result
+        console.log(message)
+    }
+}
+
+class checkElement {
+    constructor (id, tagName){
+       this.id = id
+       this.tagName = tagName.toUpperCase()
+    }
+}
+
+class displayManager {
+
+    static createSelectors(){
+        displays.smeSelector = new display ('smeSelector')
+        //displays.smeSelector = new smeSelector ()
+        //displays.activitySelector = new activitySelector ()
+    }
+
+    static async positionSelectors(){
+        await displays.smeSelector.setPosition()
+        await displays.activitySelector.setPosition(displays.smeSelector, 400)
+        //displayManager.repositionSelector('activitySelectorDiv')
+    }
+
+    static async repositionSelector(displayName){
+        const thisDiv = d3.selectAll('div').select('#activitySelectorDiv')
+        console.log(thisDiv) 
+        const div = await displays.getDiv(displayName)
+        
+        div.call(this.move, div, 500, 200, 400)
+    }
+    
+    static move(selection, duration, left, top){
+        console.log(selection)
+        selection
+            .transition('t333')
+            .duration(duration)
+            .ease(d3.easeCubicInOut)
+            .style('left', left + 'px')
+            .style('top', top + 'px')
+
+    }
+
+    static loadSelector(selectorName){
+        displays[selectorName].load()
+    }
+
+    static getDisplay(displayTitle){
+        return displays[displayTitle]
+    }
+
+
+}
+
+class display {
+
+    constructor(id){
+        this.id = id
+        this.createContainer()
+        this.createCanvas()
+    }
+
+    createContainer(){
+        this.div = d3.select('body')
+            .append('div').attr('id', this.id + 'Div')
+            .style('position', 'absolute')
+    }
+
+    createCanvas(){
+        this.svg = this.div.append('div')
+            .attr('id', this.id + 'Svg')
+    }
+
+    reposition(){
+
+    }
+
+    resize(){}
+
+    updateContent(){
+
+    }
+
+}
+
+class containerDynamics {
+    
+}
+
 
 function onItemHover(){
     const targetElem = d3.select(this)
@@ -20,61 +176,189 @@ function onItemOff(event, d){
 
 function onItemClick(){
     const targetElem = d3.select(this)
+    
     const classes = targetElem.attr('class').split(' ')
     const displayTitle = classes[0]
     thisDisplay = displayManager.getDisplay(displayTitle)
+    thisDisplay.itemClicked(targetElem.data()[0])
+}
+
+class selectionManager {
     
-    if(thisDisplay.constructor.name === 'menu'){
-        thisDisplay.itemClicked(targetElem)
+    static subscribers = {}
+    static subscribe(selectionEvent, callback){
+        if (!this.subscribers[selectionEvent]) {
+            this.subscribers[selectionEvent] = [];
+        }
+        this.subscribers[selectionEvent].push(callback);
+    
+    }
+
+    static publish(selectionEvent, data){
+        if (this.subscribers[selectionEvent]) {
+            this.subscribers[selectionEvent].forEach(callback => {
+                callback(data);
+            });
+        }
+    }
+}
+
+class selector {
+
+    items = []
+    dynamics = {}
+
+    constructor(title){
+        this.title = title
+        this.setupWindow()
+    }
+
+    createItems(data){
+        this.items.push(new menuItem ('title', this.title, this.title))
+        data.forEach(d => {
+            this.items.push(new menuItem ('selectable', d))
+        });
+    }
+
+    unload(){
+        this.items = []
+    }
+
+    itemClicked(clickedItem){
+        switch(clickedItem.type){
+            case 'selectable':
+                this.updateSelection(clickedItem)
+                break;
+            case 'title':
+                this.dynamics.expand(this.items)
+            default:
+        }
+    }
+
+    updateSelection(clickedItem){
+         if(clickedItem.selected){
+            clickedItem.selected = false
+         } else {
+            clickedItem.selected = true 
+            this.deselectOtherItems(clickedItem.id)
+            this.dynamics.contract(this.items)
+         }
+
+         selectionManager.publish(this.constructor.name, clickedItem)
+    }
+
+    deselectOtherItems(selectedID){
+        const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
+        remainingItems.map(obj => ({...obj, selected: false}))
+    }
+
+    getSelectedItemIndex(){
+        return this.items.findIndex(item => item.selected === true)
+    }
+
+    setupWindow(){
+        const thisWindowControl = new windowControl()
+        thisWindowControl.createDiv(this.constructor.name)
+        thisWindowControl.createSVG(this.constructor.name)
+        this.dynamics = new menuDynamics(this.constructor.name, thisWindowControl)
+    }
+
+    setPosition(selectorToLeft, duration){
+        let xStart = undefined
+        try { xStart = selectorToLeft.getRightBoundary() }
+        catch { xStart = 0}
+        finally {return this.dynamics.move(xStart, duration)}
+    }
+
+    getRightBoundary(){
+        const left = this.dynamics.getPositionLeft()
+        const width = this.dynamics.getWidestItemWidth()
+        return left + width
     }
 
 }
 
+class smeSelector extends selector {
 
+    constructor(){
+        super('SME')
+    }
 
+    load(){
+        const data = this.getData()
+        this.createItems(data)
+        this.dynamics.renderItems(this.items)
+        this.dynamics.contract(this.items)
+    }
 
-
-
-
-
-class displayManager {
-
-    static createDisplays(){
-        const displayRow = [
-            new menu ('SME', smeData),
-            new menu ('Activity', activityData)
+    getData(){
+        return [
+            'Side hustle',
+            'Construction company',
+            'Freelance profressional'
         ]
-
-        for(let i = 0; i < displayRow.length; i++){
-            const thisDisplay = displayRow[i]
-            thisDisplay.setup(i)
-            displays[thisDisplay.title] = thisDisplay
-        }
     }
-
-    static selectionTrigger (sourceDisplayTitle, sourceSelection){
-        switch(sourceDisplayTitle){
-            case 'SME':
-                displays.activity.load()
-        }
-    }
-
-    static loadDisplay(displayTitle){
-        displays[displayTitle].load()
-    }
-
-    static getDisplay(displayTitle){
-        return displays[displayTitle]
-    }
-
-
 }
 
+class activitySelector extends selector {
+
+    constructor(){
+        super('Activity')
+        this.setupSubscriptions()
+    }
+
+    setupSubscriptions(){
+        const callback = this.SMESelectionChange.bind(this)
+        selectionManager.subscribe('smeSelector', callback)
+    }
+
+    SMESelectionChange(SMEitem){
+        switch(SMEitem.selected){
+            case true:
+                this.load(SMEitem)
+                break;
+            case false:
+                this.unload()
+                break;
+            default:
+                
+        }
+    }
+
+    load(smeItem){
+        const data = this.getData(smeItem.type)
+        this.createItems(data)
+        this.dynamics.renderItems(this.items)
+        this.dynamics.expand(this.items)
+    }
+
+    getData(smeType){
+        const activities = []
+        switch(smeType){
+            default:
+            case 'Construction company':
+                activities.push('paying employees')
+            case 'Freelance profressional':
+                activities.push('buying equipment')
+            case 'Side hustle':
+                activities.push('selling to a customer')
+                activities.push('starting the business')
+                activities.push('setting up fin. mgmt. systems')
+        }
+        return activities
+    }
+
+}
 
 class displays {
-    
-    static sme = {}
-    static activity = {}
+    static smeSelector = {}
+    static activitySelector = {}
+
+    static async getDiv(displayName){
+        const thisDiv = await d3.select('#' + displayName + 'Div')
+        console.log(thisDiv)
+        return thisDiv
+    }
 
 }
 
@@ -91,9 +375,11 @@ class smeData {
 }
 
 class activityData {
-    static get (smeType){
+    static get (dependencies){
+        
+        
         const activities = []
-        switch(smeType){
+        switch(dependencies.smeType){
             default:
             case 'Construction company':
                 activities.push('paying employees')
@@ -116,83 +402,6 @@ class obligationData {
 
 }
 
-class menu {
-    items = []
-    height = menuItem.fontSize 
-    top = 0
-    width = 200
-    dynamics = {}
-    dataSource = {}
-    expansionState = 'contracted'
-
-    constructor(title, dataSource){
-        this.title = title
-        this.dataSource = dataSource
-        
-    }
-
-    setup(windowPosNum){
-        this.createItems()
-        this.setupWindow(windowPosNum) 
-    }
-
-    createItems(){
-        const sourceItems = this.dataSource.get()
-        this.items.push(new menuItem ('title', this.title))
-        //items.push(new menuItem ('selector', 'no selection'))
-        sourceItems.forEach(option => {
-            this.items.push(new menuItem ('selectable', option))
-        });
-    }
-
-    setupWindow(windowPosNum){
-        const thisWindowControl = new windowControl()
-        thisWindowControl.createDiv(this.title)
-        thisWindowControl.createSVG(this.title)
-        this.dynamics = new menuDynamics(this.title, thisWindowControl)
-        this.dynamics.move(windowPosNum)
-    }
-
-    load(){
-        this.dynamics.contract(this.items)
-        this.dynamics.renderItems(this.items)
-    }
-
-    itemClicked(clickedElem){
-        const clickedItem = clickedElem.data()[0]
-
-        switch(clickedItem.type){
-            case 'selectable':
-                this.updateSelection(clickedItem)
-                this.dynamics.renderItems(this.items)
-                break;
-            case 'title':
-                this.dynamics.expand(this.items)
-            default:
-        }
-    }
-
-    updateSelection(clickedItem){
-         if(clickedItem.selected){
-            clickedItem.selected = false
-         } else {
-            clickedItem.selected = true 
-            this.deselectOtherItems(clickedItem.id)
-            this.dynamics.contract(this.items)
-         }
-    }
-
-    deselectOtherItems(selectedID){
-        const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
-        remainingItems.map(obj => ({...obj, selected: false}))
-    }
-
-    getSelectedItemIndex(){
-        return this.items.findIndex(item => item.selected === true)
-    }
-
-}
-
 class menuDynamics {
 
     constructor(menuTitle, windowControl){
@@ -204,23 +413,20 @@ class menuDynamics {
         const currentWidth = this.windowControl.getWidth()
         const multipler = this.#calculateHeightMultipler('expanded', items)
         const expandedHeight = this.#calculateHeight(multipler)
-        const dimensions = {width: currentWidth, height: expandedHeight}
-        this.windowControl.resize(dimensions, 400)
+        return this.windowControl.resize(currentWidth, expandedHeight, 400)
     }
     
     contract(items){
         const currentWidth = this.windowControl.getWidth()
         const multipler = this.#calculateHeightMultipler('contracted', items)
         const contractedHeight = this.#calculateHeight(multipler)
-        const dimensions = {width: currentWidth, height: contractedHeight}
-        this.windowControl.resize(dimensions, 400)
+        return this.windowControl.resize(currentWidth, contractedHeight, 400)
     }
 
-    move(windowPosNum){
-        const currentWidth = this.windowControl.getWidth()
-        const left = windowPosNum * currentWidth
-        const top = window.innerHeight - (window.innerHeight / gRatio)
-        this.windowControl.reposition(left, top)
+    move(leftOfX, duration){
+        const left = leftOfX + 5
+        const top = 40 //window.innerHeight - (window.innerHeight / gRatio
+        return this.windowControl.reposition(left, top, duration)
     }
 
     #calculateHeight(multipler){
@@ -278,11 +484,34 @@ class menuDynamics {
  */
                     
                 },
-                exit => exit
+                exit => {
+                    exit.remove()
+                }
             )
     }
 
+    getPositionLeft(){
+        const leftString = this.windowControl.div.style('left')
+        return parseInt(leftString.slice(0, leftString.indexOf('px')))
+    }
 
+    getWidestItemWidth(){
+        const svg = this.windowControl.svg //d3.select('#' + this.menuTitle + 'Svg')
+        const gItems = svg.selectAll('g')
+        let widestWidth = 0
+        gItems.each((d, i) => {
+            const elemWidth = this.getElemWidth(d.id)
+            if(elemWidth > widestWidth){
+                widestWidth = elemWidth
+            }
+        })
+        return widestWidth
+    }
+
+    getElemWidth(id){
+        const elem = d3.select('#' + id)
+        return parseInt(Math.ceil(elem.node().getBBox().width))
+    }
 
 }
 
@@ -367,20 +596,22 @@ class menuItem {
 
     static fontSize = 12
 
-    constructor(type, label){
+    constructor(type, label, id){
         this.type = type
         this.label = label
         this.selected = false
-        this.generateID()
+        this.setID(id)
     }
 
-    generateID(){
-        const arr = this.label.split(' ')
-        this.id = arr.join('')
+    setID(id){
+        if(id !== undefined){
+            this.id = id
+        } else {
+            const arr = this.label.split(' ')
+            this.id = arr.join('')
+        }  
     }
 }
-
-
 
 class windowControl {
     
@@ -404,19 +635,46 @@ class windowControl {
         return widthText.slice(0, widthText.indexOf('px'))
     }
 
-    resize(dimensions, duration){
-        this.resizeDiv(dimensions.width, dimensions.height, duration)
-        this.resizeSVG(dimensions.width, dimensions.height)
-    }
+    resize(width, height, duration){
 
-    reposition(left, top){
-        this.div.style('left', left + 'px').style('top', top + 'px')
-    }
-
-    resizeDiv(width, height){
-        this.div.transition()
+        const t = d3.transition()
             .ease(d3.easeCubicInOut)
-            .duration(500)
+            .duration(duration)
+
+        this.div.transition(t)
+            .style('width', width + "px")
+            .style('height', height + "px")
+        
+        return t.end()
+
+        this.resizeDiv(dimensions.width, dimensions.height, transition)
+        //this.resizeSVG(dimensions.width, dimensions.height)
+    }
+
+    reposition(left, top, duration){ 
+        
+        const t = d3.transition()
+            .ease(d3.easeCubicInOut)
+            .duration(duration)
+        
+        this.div.transition(t)
+            .style('left', left + 'px')
+            .style('top', top + 'px')
+        
+        return t.end()
+
+    }
+
+    moveDiv(selection, duration){
+        selection.transition()
+            .ease(d3.easeCubicInOut)
+            .duration(duration)
+            .style('left', left + 'px')
+            .style('top', top + 'px')
+    }
+
+    resizeDiv(width, height, t){
+        this.div.transition(t)
             .style('width', width + "px").style('height', height + "px")
     }
 
