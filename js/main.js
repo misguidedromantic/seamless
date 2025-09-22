@@ -1,20 +1,50 @@
 const gRatio = 1.618
 
-window.onload = async function(){
-    selectionManager.load('enterprise')
-    //displayManager.createSelectors()
-    selectorControl.renderItems('enterprise')
-    selectorControl.move('activity')
+class selectors {
+    static enterprise = {}
+    static activity = {}
+    static obligation = {}
+    static process = {}
+    static mechanism = {}
 }
 
-class displayManager {
+window.onload = async function(){
 
-    static createSelectors(){
+    function setupSelectors(){
         selectors.enterprise = new selector ('enterprise')
-        displays.activity = new selector ('activity')
+        selectors.activity = new selector ('activity')
     }
 
+    function positionSelectors(){
+        selectorControl.move('activity')
+    }
+
+    setupSelectors()
+    positionSelectors()
+    selectors.enterprise.load()
 }
+
+function onItemHover(){
+    const targetElem = d3.select(this)
+    const id = targetElem.attr('id')
+    targetElem.attr('font-weight','bold')
+    const allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
+    allOtherElements.attr('font-weight','normal')
+}
+
+function onItemOff(event, d){
+    const elem = d3.select('#' + d.id)
+    elem.attr('font-weight','normal')    
+}
+
+function onItemClick(){
+    const targetElem = d3.select(this)
+    //const classes = targetElem.attr('class').split(' ')
+    //const displayTitle = classes[0]
+    //thisDisplay = displayManager.getDisplay(displayTitle)
+    //thisDisplay.itemClicked(targetElem.data()[0])
+}
+
 
 class displays {
     static enterpriseSelector = {}
@@ -33,14 +63,14 @@ class displays {
 
 class selectorControl {
 
-    static load(selectorName){
+    static load(selectorLabel){
         //renderItems
     }
 
-    static move(selectorName, duration = 0){
-        const left = this.getStartingLeft(selectorName)
+    static move(selectorLabel, duration = 0){
+        const left = this.getStartingLeft(selectorLabel)
         const top = 40 //window.innerHeight - (window.innerHeight / gRatio
-        const div = d3.select('div#' + selectorName + 'SelectorDiv')
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
         div.transition()
             .ease(d3.easeCubicInOut)
             .duration(duration)
@@ -48,8 +78,8 @@ class selectorControl {
             .style('top', top + 'px')
     }
 
-    static getStartingLeft(selectorName){
-        switch(selectorName){
+    static getStartingLeft(selectorLabel){
+        switch(selectorLabel){
             case 'enterprise':
                 return 0
             case 'activity':
@@ -57,13 +87,13 @@ class selectorControl {
         }
     }
 
-    static renderItems(selectorName){
-        const svg = d3.select('#' + selectorName + 'SelectorSvg')
-        const data = selectionManager.getItems(selectorName)
+    static renderItems(selectorLabel){
+        const svg = d3.select('#' + selectorLabel + 'SelectorSvg')
+        const data = selectionManager.getItems(selectorLabel)
         const positioning = new menuItemPositioning (data)
         const styling = new menuItemStyling (data)
 
-        svg.selectAll('g.' + selectorName)
+        svg.selectAll('g.' + selectorLabel)
             .data(data, d => d.id)
             .join(
                 enter => this.enterItems(enter, positioning, styling),
@@ -102,53 +132,10 @@ class selectorControl {
 
 }
 
-class containerDynamics {
-    
-}
-
-
-function onItemHover(){
-    const targetElem = d3.select(this)
-    const id = targetElem.attr('id')
-    
-    targetElem.attr('font-weight','bold')
-    allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
-    allOtherElements.attr('font-weight','normal')
-}
-
-function onItemOff(event, d){
-    const elem = d3.select('#' + d.id)
-    elem.attr('font-weight','normal')    
-}
-
-function onItemClick(){
-    const targetElem = d3.select(this)
-    selectionManager.selectItem(targetElem)
-    //const classes = targetElem.attr('class').split(' ')
-    //const displayTitle = classes[0]
-    //thisDisplay = displayManager.getDisplay(displayTitle)
-    //thisDisplay.itemClicked(targetElem.data()[0])
-}
-
-class selectors {
-    static enterprise = {}
-    static activity = {}
-    static obligation = {}
-    static process = {}
-    static mechanism = {}
-}
-
 class selectionManager {
 
-    static load(selectorName){  
-        selectors[selectorName]= new selector (selectorName)
-        selectors[selectorName].items = this.generateItems(selectorName)
-        this.addParentSelectors(selectorName)
-        console.log(selectors[selectorName])
-    }
-
-    static generateItems(selectorName){
-        switch(selectorName){
+    static generateItems(selectorLabel){
+        switch(selectorLabel){
             case 'enterprise':
                 return enterpriseData.getItems()
             case 'activity':
@@ -156,17 +143,17 @@ class selectionManager {
         }
     }
 
-    static addParentSelectors(selectorName){
-        selectors[selectorName].items.forEach(item => item.setParentSelector(selectorName))
+    static addParentSelectors(selectorLabel){
+        selectors[selectorLabel].items.forEach(item => item.setParentSelector(selectorLabel))
     }
 
-    static getItems(selectorName){
-        return selectors[selectorName].items
+    static getItems(selectorLabel){
+        return selectors[selectorLabel].items
     }
 
     static selectItem(clickedItem){
-        const selectorName = clickedItem.attr('class')
-        const items = selectors[selectorName].items.filter(item => item.constructor.name === 'selectorItem')
+        const selectorLabel = clickedItem.attr('class')
+        const items = selectors[selectorLabel].items.filter(item => item.constructor.name === 'selectorItem')
         //find(item => item.id === clickedItem.attr('id'))
         items.forEach(item => {
             if(item.id === clickedItem.attr('id')){
@@ -199,17 +186,25 @@ class selectionManager {
     }
 }
 
-
-
 class selector {
 
     items = []
     dynamics = {}
 
-    constructor(title){
-        this.id = title + 'Selector'
+    constructor(label){
+        this.label = label
+        this.id = label + 'Selector'
+        this.setup()
+    }
+
+    setup(){
         this.createContainer()
         this.createCanvas()
+        this.createItems()
+    }
+
+    load(){
+        selectorControl.renderItems(this.label)
     }
 
     createContainer(){
@@ -223,18 +218,11 @@ class selector {
             .attr('id', this.id + 'Svg')
     }
 
-    renderItems(){
-
+    createItems(){
+        this.items = selectionManager.generateItems(this.label)
     }
 
-    createItems(data){
-        this.items.push(new selectorItem ('title', this.title, this.title))
-        data.forEach(d => {
-            this.items.push(new selectorItem ('selectable', d))
-        });
-    }
-
-    unload(){
+    unloadItems(){
         this.items = []
     }
 
@@ -291,6 +279,7 @@ class selector {
     }
 
 }
+
 
 class enterpriseSelector extends selector {
 
@@ -628,8 +617,8 @@ class selectorItem {
         this.id = this.constructor.name === 'selectorLabel' ? 'label' : this.label.replaceAll(' ','')
     }
 
-    setParentSelector(selectorName){
-        this.parentSelector = selectorName
+    setParentSelector(selectorLabel){
+        this.parentSelector = selectorLabel
     }
 }
 
