@@ -39,6 +39,8 @@ function onItemOff(event, d){
 
 function onItemClick(){
     const targetElem = d3.select(this)
+    console.log(targetElem)
+    selectionManager.selectItem(targetElem)
     //const classes = targetElem.attr('class').split(' ')
     //const displayTitle = classes[0]
     //thisDisplay = displayManager.getDisplay(displayTitle)
