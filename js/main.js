@@ -17,58 +17,49 @@ window.onload = async function(){
     }
 
     function positionSelectors(){
+        selectorControl.move('enterprise')
         selectorControl.move('activity')
         selectorControl.move('obligation')
     }
 
+    function sizeSelectors(){
+        selectorControl.resize('enterprise')
+        selectorControl.resize('activity')
+        selectorControl.resize('obligation')
+    }
+
+    function loadSelectors(){
+        selectorControl.load('enterprise')
+        selectorControl.load('activity')
+        selectorControl.load('obligation')
+    }
+
+    
     setupSelectors()
     positionSelectors()
-    selectors.enterprise.load()
+    sizeSelectors()
+    loadSelectors()
+    
 }
 
-function onItemHover(){
-    const targetElem = d3.select(this)
-    const id = targetElem.attr('id')
-    targetElem.attr('font-weight','bold')
-    const allOtherElements = d3.selectAll('g').filter(d => d.id !== id)
-    allOtherElements.attr('font-weight','normal')
+function onItemHover(event, d){
+    selectionManager.itemHighlightChange(d, event.type)
 }
 
 function onItemOff(event, d){
-    const elem = d3.select('#' + d.id)
-    elem.attr('font-weight','normal')    
+    selectionManager.itemHighlightChange(d, event.type)
 }
 
-function onItemClick(){
-    const targetElem = d3.select(this)
-    selectionManager.itemSelectionChange(targetElem)
-    //testSelectionFilters()
-    //const classes = targetElem.attr('class').split(' ')
-    //const displayTitle = classes[0]
-    //thisDisplay = displayManager.getDisplay(displayTitle)
-    //thisDisplay.itemClicked(targetElem.data()[0])
-}
-
-
-class displays {
-    static enterpriseSelector = {}
-    static activitySelector = {}
-
-    static async getDiv(displayName){
-        const thisDiv = await d3.select('#' + displayName + 'Div')
-        return thisDiv
-    }
-
-    static load(displayName){
-        
-    }
+function onItemClick(event, d){
+    selectionManager.itemSelectionChange(d)
 }
 
 
 class selectorControl {
 
     static load(selectorLabel){
-        //renderItems
+        selectionManager.updateSelectableStatus(selectorLabel)
+        this.renderItems(selectorLabel)
     }
 
     static move(selectorLabel, duration = 0){
@@ -87,9 +78,26 @@ class selectorControl {
             case 'enterprise':
                 return 0
             case 'activity':
+                return 190
             case 'obligation':
-                return 210
+                return 420
         }
+    }
+
+    static resize(selectorLabel, duration = 500){
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
+        const svg = d3.select('svg#'+ selectorLabel + 'SelectorSvg')
+        const itemCount = selectors[selectorLabel].getItemCount()
+        const width = 200
+        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount 
+        
+        div.transition('resize')
+            .ease(d3.easeCubicInOut)
+            .duration(duration)
+            .style('height', height + 'px')
+            .style('width', width + 'px')
+
+        svg.attr('width', width).attr('height', height)
     }
 
     static renderItems(selectorLabel){
@@ -113,9 +121,9 @@ class selectorControl {
             .attr('id', d => d.id)
             .attr('class', itemClassText)
             .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-            .on('mouseover', onItemHover)
+            .on('mouseover', (event, d) => onItemHover(event, d))
             .on('mouseout', (event, d) => onItemOff(event, d))
-            .on('click', onItemClick)
+            .on('click', (event, d) => onItemClick(event, d))
 
         groups.append('text')
             .text(d => d.label)
@@ -155,27 +163,14 @@ class selectionManager {
         ]
     }
 
-    static getSelectableItems(selectorLabel, selectedItemLabel){
-        const selectorStates = this.getCurrentState()
+    static getSelectableItems(selectorLabel){
         switch(selectorLabel){
             case 'enterprise':
-                return enterpriseData.getSelectableItems(selectedItemLabel)
+                return enterpriseData.getSelectableItems()
             case 'activity':
-                return activityData.getSelectableItems(selectedItemLabel)
+                return activityData.getSelectableItems()
             case 'obligation':
-        }
-    }
-
-
-
-
-
-    static getSelectorDependents = (selectorLabel) => {
-        switch(selectorLabel){
-            case 'enterprise':
-                return ['activity']
-            case 'activity':
-                return ['obligation']
+                return obligationData.getSelectableItems()
         }
     }
 
@@ -196,7 +191,7 @@ class selectionManager {
         return selections
     }
 
-    static generateItems(selectorLabel){
+    static getAllItems(selectorLabel){
         switch(selectorLabel){
             case 'enterprise':
                 return enterpriseData.getItems()
@@ -207,55 +202,56 @@ class selectionManager {
         }
     }
 
-    static addParentSelectors(selectorLabel){
-        selectors[selectorLabel].items.forEach(item => item.setParentSelector(selectorLabel))
-    }
-
     static getItems(selectorLabel){
         return selectors[selectorLabel].items
     }
 
-    static itemSelectionChange(clickedItem){
-        
-        const selectorLabel = clickedItem.attr('class')
-        const items = selectors[selectorLabel].items
-        
-        this.updateItemSelection(clickedItem, items)
-        selectorControl.renderItems(selectorLabel)
+    static itemHighlightChange(d, eventType){
+        const selectable = (item)=> item.constructor.name === 'selectorItem' && item.selectable
+        const selected = (item) => item.selected
 
-        switch(selectorLabel){
-            case 'enterprise':
-                selectors['activity'].load()
+        if(!selected(d) && selectable(d)){
+            const elem = d3.select('#' + d.id)
+            const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
+            elem.select('text').style('font-weight', fontWeight)
         }
-
-        this.getSelectableItems(selectorLabel)
-
-
-
-/*         const itemLabel = selectorStates[selectorLabel]
-        const dependents = this.getSelectorDependents(selectorLabel)
-        
-        console.log(activityData.getSelectableItems(itemLabel))
-        
-        dependents.forEach(label => {
-            selectors[label]
-            const selectableItems = getSelectableItems(itemLabel)
-        })
-        console.log(dependents)
- */
     }
 
-    static updateItemSelection(clickedItem, items){
+    static itemSelectionChange(d){
+        const elem = d3.select('#' + d.id)
+        const selectorLabel = elem.attr('class')
+        const items = selectors[selectorLabel].items
+        
+        this.updateItemSelection(d, items)
+        selectorControl.renderItems(selectorLabel)
+
+        this.updateSelectableStatus('activity')
+        this.updateSelectableStatus('obligation')
+        selectorControl.renderItems('activity')
+        selectorControl.renderItems('obligation')
+
+    }
+
+
+    static updateItemSelection(d, items){
         const selectable = (item)=> item.constructor.name === 'selectorItem'
-        const idMatch = (item)=> item.id === clickedItem.attr('id')
+        const idMatch = (item)=> item.id === d.id
         items.forEach(item => {
             item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
         })
     }
 
-    static updateSelectableStatus(selectorItems, selectableItemLabels){
+    static updateSelectableStatus(selectorLabel){
+        const selectorItems = selectors[selectorLabel].items
+        const selectableItemLabels = this.getSelectableItems(selectorLabel)
+
+
         selectorItems.forEach(item => {
-            item.selectable = selectableItemLabels.includes(item.label)
+            if(selectableItemLabels.includes(item.label)){
+                item.selectable = true
+            } else {
+                item.selectable = false
+            }
         })
     }
 
@@ -299,19 +295,6 @@ class selector {
         this.createItems()
     }
 
-    load(){
-        selectorControl.renderItems(this.label)
-    }
-
-    getItems(selectorStates){
-        switch(this.label){
-            case 'enterprise':
-                return this.items
-            
-        }
-    }
-
-
     createContainer(){
         this.div = d3.select('body')
             .append('div').attr('id', this.id + 'Div')
@@ -324,39 +307,19 @@ class selector {
     }
 
     createItems(){
-        this.items = selectionManager.generateItems(this.label)
+        this.items = selectionManager.getAllItems(this.label)
     }
 
     unloadItems(){
         this.items = []
     }
 
-    itemClicked(clickedItem){
-        switch(clickedItem.type){
-            case 'selectable':
-                this.updateSelection(clickedItem)
-                break;
-            case 'title':
-                this.dynamics.expand(this.items)
-            default:
-        }
+    getItemCount(){
+        return this.items.length
     }
 
-    updateSelection(clickedItem){
-         if(clickedItem.selected){
-            clickedItem.selected = false
-         } else {
-            clickedItem.selected = true 
-            this.deselectOtherItems(clickedItem.id)
-            this.dynamics.contract(this.items)
-         }
-
-         selectionManager.publish(this.constructor.name, clickedItem)
-    }
-
-    deselectOtherItems(selectedID){
-        const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
-        remainingItems.map(obj => ({...obj, selected: false}))
+    getItem(id){
+        return this.items.find(item => item.id === id)
     }
 
     getSelectedItemIndex(){
@@ -411,8 +374,7 @@ class enterpriseData {
     }
 
     static getSelectableItems(){
-        const allItems = this.getItems()
-        return allItems.filter(item => item.constructor.name !== 'selectorLabel')
+        return selectors['enterprise'].items.map(item => item.label)
     }
 
 }
@@ -425,16 +387,8 @@ class activityData {
             new selectorItem ('selling to enterprise'),
             new selectorItem ('selling to a customer'),
             new selectorItem ('starting the business'),
-            new selectorItem ('setting up fin. mgmt. systems')
+            new selectorItem ('setting up fin mgmt systems')
         ]
-    }
-
-    static update(enterpriseType){
-        const items = this.getItems()
-        const targetLabels = this.getTargetLabels(enterpriseType)
-        items.forEach(item => {
-            item.selectable = targetLabels.includes(item.label)
-        })
     }
 
     static getSelectableItems(){
@@ -442,7 +396,6 @@ class activityData {
         const selectorStates = selectionManager.getCurrentState()
         
         switch(selectorStates['enterprise']){
-            default:
             case 'construction company':
                 labels.push('paying employees')
             case 'freelance profressional':
@@ -450,7 +403,7 @@ class activityData {
             case 'side hustle':
                 labels.push('selling to a customer')
                 labels.push('starting the business')
-                labels.push('setting up fin. mgmt. systems')
+                labels.push('setting up fin mgmt systems')
         }
         
         return labels
@@ -534,7 +487,7 @@ class obligationData {
                 labels.push ('register for vat')
                 break;
 
-            case 'setting up fin. mgmt. systems': 
+            case 'setting up fin mgmt systems': 
                 labels.push ('collect payroll tax')
                 labels.push ('calculate income tax')
                 labels.push ('report income tax')
@@ -686,8 +639,6 @@ class menuItemPositioning {
         if(selectedIndex > i){
             return d.type === 'selectable' ? i + 1 : i
         }
-
-
 
 
     }
