@@ -13,10 +13,12 @@ window.onload = async function(){
     function setupSelectors(){
         selectors.enterprise = new selector ('enterprise')
         selectors.activity = new selector ('activity')
+        selectors.obligation = new selector ('obligation')
     }
 
     function positionSelectors(){
         selectorControl.move('activity')
+        selectorControl.move('obligation')
     }
 
     setupSelectors()
@@ -39,8 +41,8 @@ function onItemOff(event, d){
 
 function onItemClick(){
     const targetElem = d3.select(this)
-    console.log(targetElem)
-    selectionManager.selectItem(targetElem)
+    selectionManager.itemSelectionChange(targetElem)
+    //testSelectionFilters()
     //const classes = targetElem.attr('class').split(' ')
     //const displayTitle = classes[0]
     //thisDisplay = displayManager.getDisplay(displayTitle)
@@ -85,6 +87,7 @@ class selectorControl {
             case 'enterprise':
                 return 0
             case 'activity':
+            case 'obligation':
                 return 210
         }
     }
@@ -94,20 +97,21 @@ class selectorControl {
         const data = selectionManager.getItems(selectorLabel)
         const positioning = new menuItemPositioning (data)
         const styling = new menuItemStyling (data)
+        const itemClassText = selectorLabel
 
         svg.selectAll('g.' + selectorLabel)
             .data(data, d => d.id)
             .join(
-                enter => this.enterItems(enter, positioning, styling),
-                update => this.updateItems(update, positioning),
+                enter => this.enterItems(enter, itemClassText, positioning, styling),
+                update => this.updateItems(update, positioning, styling),
                 exit => this.exitItems(exit)
             )
     }
 
-    static enterItems(selection, positioning, styling){
+    static enterItems(selection, itemClassText, positioning, styling){
         const groups = selection.append('g')
             .attr('id', d => d.id)
-            .attr('class', d => d.parentSelector)
+            .attr('class', itemClassText)
             .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
             .on('mouseover', onItemHover)
             .on('mouseout', (event, d) => onItemOff(event, d))
@@ -122,10 +126,16 @@ class selectorControl {
         return groups
     }
 
-    static updateItems(selection, positioning){
-         return selection.transition('itemOrder')
+    static updateItems(selection, positioning, styling){
+         const groups = selection.transition('itemOrder')
             .duration(350)
             .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
+
+        groups.select('text')
+            .style('font-weight', d => styling.getFontWeight(d))
+            .style('fill', d => styling.getTextColour(d))
+
+        return groups
     }
 
     static exitItems(selection){
@@ -136,12 +146,64 @@ class selectorControl {
 
 class selectionManager {
 
+
+    static selectorArray = ()=>{
+        return [
+            selectors.enterprise,
+            selectors.activity,
+            selectors.obligation
+        ]
+    }
+
+    static getSelectableItems(selectorLabel, selectedItemLabel){
+        const selectorStates = this.getCurrentState()
+        switch(selectorLabel){
+            case 'enterprise':
+                return enterpriseData.getSelectableItems(selectedItemLabel)
+            case 'activity':
+                return activityData.getSelectableItems(selectedItemLabel)
+            case 'obligation':
+        }
+    }
+
+
+
+
+
+    static getSelectorDependents = (selectorLabel) => {
+        switch(selectorLabel){
+            case 'enterprise':
+                return ['activity']
+            case 'activity':
+                return ['obligation']
+        }
+    }
+
+    static getCurrentState(){
+
+        const selectors = this.selectorArray()
+        let selections = []
+        for(let i = 0; i < selectors.length; i++){
+            try{
+                const selectorLabel = selectors[i].getLabel()
+                const selectedItemLabel = selectors[i].getSelectedItemLabel()
+                selections[selectorLabel] = selectedItemLabel
+            } catch {
+                continue;
+            }
+        }
+
+        return selections
+    }
+
     static generateItems(selectorLabel){
         switch(selectorLabel){
             case 'enterprise':
                 return enterpriseData.getItems()
             case 'activity':
                 return activityData.getItems()
+            case 'obligation':
+                return obligationData.getItems()
         }
     }
 
@@ -153,16 +215,48 @@ class selectionManager {
         return selectors[selectorLabel].items
     }
 
-    static selectItem(clickedItem){
+    static itemSelectionChange(clickedItem){
+        
         const selectorLabel = clickedItem.attr('class')
-        const items = selectors[selectorLabel].items.filter(item => item.constructor.name === 'selectorItem')
-        //find(item => item.id === clickedItem.attr('id'))
-        items.forEach(item => {
-            if(item.id === clickedItem.attr('id')){
-                
-            }
-        })
+        const items = selectors[selectorLabel].items
+        
+        this.updateItemSelection(clickedItem, items)
+        selectorControl.renderItems(selectorLabel)
 
+        switch(selectorLabel){
+            case 'enterprise':
+                selectors['activity'].load()
+        }
+
+        this.getSelectableItems(selectorLabel)
+
+
+
+/*         const itemLabel = selectorStates[selectorLabel]
+        const dependents = this.getSelectorDependents(selectorLabel)
+        
+        console.log(activityData.getSelectableItems(itemLabel))
+        
+        dependents.forEach(label => {
+            selectors[label]
+            const selectableItems = getSelectableItems(itemLabel)
+        })
+        console.log(dependents)
+ */
+    }
+
+    static updateItemSelection(clickedItem, items){
+        const selectable = (item)=> item.constructor.name === 'selectorItem'
+        const idMatch = (item)=> item.id === clickedItem.attr('id')
+        items.forEach(item => {
+            item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
+        })
+    }
+
+    static updateSelectableStatus(selectorItems, selectableItemLabels){
+        selectorItems.forEach(item => {
+            item.selectable = selectableItemLabels.includes(item.label)
+        })
     }
 
     static deselectOtherItems(items){
@@ -208,6 +302,15 @@ class selector {
     load(){
         selectorControl.renderItems(this.label)
     }
+
+    getItems(selectorStates){
+        switch(this.label){
+            case 'enterprise':
+                return this.items
+            
+        }
+    }
+
 
     createContainer(){
         this.div = d3.select('body')
@@ -260,6 +363,20 @@ class selector {
         return this.items.findIndex(item => item.selected === true)
     }
 
+    getSelectedItem(){
+        return this.items.find(item => item.selected === true)
+    }
+
+    getSelectedItemLabel(){
+        const item = this.getSelectedItem()
+        try{return item.label}
+        catch{return undefined}
+    }
+
+    getLabel(){
+        return this.label
+    }
+
     setupWindow(){
         const thisWindowControl = new windowControl()
         thisWindowControl.createDiv(this.constructor.name)
@@ -283,97 +400,29 @@ class selector {
 }
 
 
-class enterpriseSelector extends selector {
-
-    constructor(){
-        super('enterprise')
-    }
-
-    load(){
-        const data = this.getData()
-        this.createItems(data)
-        this.dynamics.renderItems(this.items)
-        this.dynamics.contract(this.items)
-    }
-
-    getData(){
-        return [
-            'Side hustle',
-            'Construction company',
-            'Freelance profressional'
-        ]
-    }
-}
-
-class activitySelector extends selector {
-
-    constructor(){
-        super('Activity')
-        this.setupSubscriptions()
-    }
-
-    setupSubscriptions(){
-        const callback = this.SMESelectionChange.bind(this)
-        selectionManager.subscribe('enterpriseSelector', callback)
-    }
-
-    SMESelectionChange(SMEitem){
-        switch(SMEitem.selected){
-            case true:
-                this.load(SMEitem)
-                break;
-            case false:
-                this.unload()
-                break;
-            default:
-                
-        }
-    }
-
-    load(smeItem){
-        const data = this.getData(smeItem.type)
-        this.createItems(data)
-        this.dynamics.renderItems(this.items)
-        this.dynamics.expand(this.items)
-    }
-
-    getData(smeType){
-        const activities = []
-        switch(smeType){
-            default:
-            case 'Construction company':
-                activities.push('paying employees')
-            case 'Freelance profressional':
-                activities.push('buying equipment')
-            case 'Side hustle':
-                activities.push('selling to a customer')
-                activities.push('starting the business')
-                activities.push('setting up fin. mgmt. systems')
-        }
-        return activities
-    }
-
-}
-
-
-
 class enterpriseData {  
     static getItems(){
         return [
-            new selectorLabel ('Enterprise'),
-            new selectorItem ('Side hustle'),
-            new selectorItem ('Construction company'),
-            new selectorItem ('Freelance profressional')
+            new selectorLabel ('enterprise'),
+            new selectorItem ('side hustle'),
+            new selectorItem ('construction company'),
+            new selectorItem ('freelance profressional')
         ]
     }
+
+    static getSelectableItems(){
+        const allItems = this.getItems()
+        return allItems.filter(item => item.constructor.name !== 'selectorLabel')
+    }
+
 }
 
 class activityData {
     static getItems (){
         return [
-            new selectorLabel ('Activity'),
+            new selectorLabel ('activity'),
             new selectorItem ('paying employees'),
-            new selectorItem ('buying equipment'),
+            new selectorItem ('selling to enterprise'),
             new selectorItem ('selling to a customer'),
             new selectorItem ('starting the business'),
             new selectorItem ('setting up fin. mgmt. systems')
@@ -388,30 +437,114 @@ class activityData {
         })
     }
 
-    static getTargetLabels(enterpriseType){
-        const labels = []
-        switch(enterpriseType){
+    static getSelectableItems(){
+        let labels = []
+        const selectorStates = selectionManager.getCurrentState()
+        
+        switch(selectorStates['enterprise']){
             default:
-            case 'Construction company':
+            case 'construction company':
                 labels.push('paying employees')
-            case 'Freelance profressional':
-                labels.push('buying equipment')
-            case 'Side hustle':
+            case 'freelance profressional':
+                labels.push('selling to enterprise')
+            case 'side hustle':
                 labels.push('selling to a customer')
                 labels.push('starting the business')
                 labels.push('setting up fin. mgmt. systems')
         }
+        
         return labels
     }
-
-
 }
 
 class obligationData {
 
-    static get (){
-
+    static getItems (){
+        return [
+            new selectorLabel ('obligation'),
+            new selectorItem ('register for income tax'),
+            new selectorItem ('record keep for income tax'),
+            new selectorItem ('calculate income tax'),
+            new selectorItem ('report income tax'),
+            new selectorItem ('pay income tax'),
+            new selectorItem ('calculate vat'),
+            new selectorItem ('collect vat'),
+            new selectorItem ('report vat'),
+            new selectorItem ('pay vat'),
+            new selectorItem ('calculate payroll tax'),
+            new selectorItem ('collect payroll tax'),
+            new selectorItem ('report payroll tax'),
+            new selectorItem ('pay payroll tax'),
+        ]
     }
+
+    static getSelectableItems (){
+        const selectorStates = selectionManager.getCurrentState()
+        const itemsEnterprise = this.getEnterpriseSelectableItems(selectorStates['enterprise'])
+        const itemsActivity = this.getActivitySelectableItems(selectorStates['activity'])
+        return itemsEnterprise.filter(item => itemsActivity.includes(item))
+    }
+
+    static getEnterpriseSelectableItems(enterpriseSelection){
+        const labels = []
+        switch(enterpriseSelection){
+            default:
+            case 'construction company':
+                labels.push ('calculate payroll tax')
+                labels.push ('collect payroll tax')
+                labels.push ('report payroll tax')
+                labels.push ('pay payroll tax')
+            case 'freelance profressional':
+                labels.push ('calculate vat')
+                labels.push ('collect vat')
+                labels.push ('report vat')
+                labels.push ('pay vat')
+            case 'side hustle':
+                labels.push ('register for income tax')
+                labels.push ('record keep for income tax')
+                labels.push ('calculate income tax')
+                labels.push ('report income tax')
+                labels.push ('pay income tax')
+        }
+        return labels
+    }
+
+    static getActivitySelectableItems(activitySelection){
+        const labels = []
+        switch(activitySelection){
+            case 'paying employees':
+                labels.push ('calculate payroll tax')
+                labels.push ('collect payroll tax')
+                labels.push ('report payroll tax')
+                labels.push ('pay payroll tax')
+                break;
+            
+            case 'selling to a customer':
+                labels.push ('record keep for income tax')
+                labels.push ('calculate vat')
+                labels.push ('collect vat')
+                labels.push ('report vat')
+            
+            case 'selling to enterprise':
+                labels.push ('pay vat')
+                break;
+            
+            case 'starting the business':
+                labels.push ('register for income tax')
+                labels.push ('register for vat')
+                break;
+
+            case 'setting up fin. mgmt. systems': 
+                labels.push ('collect payroll tax')
+                labels.push ('calculate income tax')
+                labels.push ('report income tax')
+                labels.push ('pay income tax')
+                break;
+        }
+        return labels
+    }
+
+    
 
 }
 
@@ -458,50 +591,7 @@ class menuDynamics {
         return items.findIndex(item => item.selected === true)    
     }
 
-    renderItems(items){
-        const svg = this.windowControl.svg
-        const positioning = new menuItemPositioning (items)
-        const styling = new menuItemStyling (items)
-
-        svg.selectAll('g.' + this.menuTitle)
-            .data(items, d => d.id)
-            .join(
-                enter => {
-
-                    const groups = enter.append('g')
-                        .attr('class', d => this.menuTitle + ' ' + d.type)
-                        .attr('id', d => d.id)
-                        .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-                        .on('mouseover', onItemHover)
-                        .on('mouseout', (event, d) => onItemOff(event, d))
-                        .on('click', onItemClick)
-
-                    groups.append('text')
-                        .text(d => d.type !== 'selector' ? d.label : '')
-                        .style('fill', d => styling.getTextColour(d))
-                        .attr('dx', 15)
-                        .attr('dy', selectorItem.fontSize)
-                    
-                    return groups
-                },
-
-                update => {
-
-                    update
-                        .transition('itemOrder')
-                        .duration(350)
-                        .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
-
-                    /* groups.selectAll('text')
-                        .style('font-weight', d => styling.getFontWeight(d))
- */
-                    
-                },
-                exit => {
-                    exit.remove()
-                }
-            )
-    }
+    
 
     getPositionLeft(){
         const leftString = this.windowControl.div.style('left')
@@ -547,6 +637,8 @@ class menuItemStyling {
     getFontWeight(d){
         return d.selected ? 'bold' : 'normal'
     }
+
+
 }
 
 class menuItemPositioning {
@@ -575,6 +667,7 @@ class menuItemPositioning {
     }
 
     getListPosition(d, i){
+        return i
         const selectedIndex = this.getSelectedItemIndex()
 
         if(d.id === 'SideHustle'){
