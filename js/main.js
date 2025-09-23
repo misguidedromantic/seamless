@@ -362,7 +362,6 @@ class selector {
 
 }
 
-
 class enterpriseData {  
     static getItems(){
         return [
@@ -684,65 +683,11 @@ class windowControl {
     svgWidth = 0
     svgHeight = 0
 
-    createDiv(id, container = d3.select('body')){
-        this.div = container.append('div').attr('id', id + 'Div').style('position', 'absolute')
-    }
-    
-    createSVG(id, container = this.div){
-        this.svg = container.append('svg').attr('id', id + 'Svg')
-    }
-
     getWidth(){
         const widthText = this.div.style('width')
         return widthText.slice(0, widthText.indexOf('px'))
     }
 
-    resize(width, height, duration){
-
-        const t = d3.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(duration)
-
-        this.div.transition(t)
-            .style('width', width + "px")
-            .style('height', height + "px")
-        
-        return t.end()
-
-        this.resizeDiv(dimensions.width, dimensions.height, transition)
-        //this.resizeSVG(dimensions.width, dimensions.height)
-    }
-
-    reposition(left, top, duration){ 
-        
-        const t = d3.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(duration)
-        
-        this.div.transition(t)
-            .style('left', left + 'px')
-            .style('top', top + 'px')
-        
-        return t.end()
-
-    }
-
-    moveDiv(selection, duration){
-        selection.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(duration)
-            .style('left', left + 'px')
-            .style('top', top + 'px')
-    }
-
-    resizeDiv(width, height, t){
-        this.div.transition(t)
-            .style('width', width + "px").style('height', height + "px")
-    }
-
-    resizeSVG(width, height){
-        this.svg.attr('width', width).attr('height', height)
-    }
 
 }
 
