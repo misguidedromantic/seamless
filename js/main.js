@@ -1,5 +1,12 @@
 const gRatio = 1.618
 
+class styles {
+    static pageColour = '#F6F7F9'
+    static divColour = 'white'
+    static divShadowUp = '5px 5px 10px rgba(0, 0, 0, 0.3)'
+    static divShadowDown = '0px 0px 0px rgba(0, 0, 0, 0.3)'
+}
+
 class selectors {
     static enterprise = {}
     static activity = {}
@@ -20,8 +27,6 @@ window.onload = async function(){
         selectors.activity = new selector ('activity')
     }
 
-
-
     createSelectors()
     await loadSelectors()
 }
@@ -35,9 +40,23 @@ async function loadSelectors(){
 
 async function loadConnectors(){
     const obligations = obligationData.getSelectableItems()
-    obligations.forEach(obligation => {
-        connectors.obligations.push(new connector(obligation, 'obligation'))
-    })
+    return createConnectors(obligations, 'obligation')
+
+}
+
+async function createConnectors(connectorItemLabels, type){
+    const transitions = []
+    
+    for(let i = 0; i < connectorItemLabels.length; i++){
+        const itemLabel = connectorItemLabels[i]
+        const cn = new connector(type, itemLabel, i)
+        cn.setup()
+        connectors.obligations.push(cn) 
+        transitions[i] = connectorControl.renderItems(cn.id, cn.label, cn.itemLabel)
+        connectorControl.surfaceConnector(cn.id, i)
+    }
+
+    return Promise.all(transitions)
 
 }
 
@@ -186,8 +205,8 @@ class selectorControl {
         const svg = d3.select('#' + selectorLabel + 'SelectorSvg')
         const data = selectionManager.getItems(selectorLabel)
         const fn = {
-            positioning: new menuItemPositioning (data),
-            styling: new menuItemStyling (data),
+            positioning: new selectorItemPositioning (data),
+            styling: new selectorItemStyling (data),
             selectorLabel: selectorLabel
         }
 
@@ -257,7 +276,9 @@ class selectorControl {
 
 }
 
-class menuItemStyling {
+
+
+class selectorItemStyling {
     constructor(items){
         this.items = items
     }
@@ -290,7 +311,8 @@ class menuItemStyling {
 
 }
 
-class menuItemPositioning {
+
+class selectorItemPositioning {
 
     constructor(items){
         this.items = items
@@ -389,17 +411,20 @@ class selectionManager {
     }
 
     static itemHighlightChange(d, eventType){
+        console.log(d)
         const selectable = (item)=> item.constructor.name === 'selectorItem' && item.selectable
         const selected = (item) => item.selected
 
         if(!selected(d) && selectable(d)){
+            console.log(d.id)
             const elem = d3.select('#' + d.id)
+            console.log(elem)
             const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
             elem.select('text').style('font-weight', fontWeight)
         }
     }
 
-    static itemSelectionChange(d){
+    static async itemSelectionChange(d){
         const elem = d3.select('#' + d.id)
         const selectorLabel = elem.attr('class')
         const items = selectors[selectorLabel].items
@@ -435,9 +460,6 @@ class selectionManager {
         } 
         
     }
-
-     
-
 
     static updateItemSelection(d, items){
         const selectable = (item)=> item.constructor.name === 'selectorItem'
@@ -488,26 +510,32 @@ class connector {
 
     static padding = 15
 
-    constructor(label, type){
-        this.label = label
-        this.id = label + type
-        this.type = type
-        this.setup()
+    constructor(type, itemLabel, posNum){
+        this.id = type + (posNum + 1)
+        this.label = type + ' #' + (posNum + 1)
+        this.itemLabel = itemLabel
+        this.posNum = posNum
     }
 
-     setup(){
+    setup(){
         this.createContainer()
         this.createCanvas()
     }
 
     createContainer(){
+        const left = 1000
+        const top = this.posNum * 60 + 100
+        const height = Math.round(selectorItem.fontSize * gRatio) * 2 + selector.padding * 2
+        
         this.div = d3.select('body')
-            .append('div').attr('id', this.id + 'Div')
+            .append('div')
+            .attr('id', this.id + 'Div')
             .style('position', 'absolute')
-            .style('background-color', 'white')
-            .style('border-radius', '10px')
-            .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
-
+            .style('background-color', styles.pageColour)
+            .style('box-shadow', styles.divShadowDown)
+            .style('left', left + 'px')
+            .style('top', top + 'px')
+            .style('height', height + 'px')
     }
 
     createCanvas(){
@@ -516,6 +544,125 @@ class connector {
     }
 
 }
+
+class connectorControl {
+    static async renderItems(id, label, itemLabel){
+
+        const svg = d3.select('#' + id + 'Svg')
+        const data = [
+            new selectorLabel(label),
+            new selectorItem(itemLabel, true)
+        ]
+        const fn = {
+            positioning: new connectorItemPositioning (data),
+            styling: new connectorItemStyling (data),
+        }
+
+        let enterTransition = null;
+        let updateTransition = null;
+
+        svg.selectAll('g')
+            .data(data, d => d.id)
+            .join(
+                enter => {
+                    const t = this.enterItems(enter, fn)
+                    enterTransition = t
+                    return t
+                },
+                update => {
+                    const t = this.updateItems(update, fn)
+                    updateTransition = t
+                    return t
+                },
+                exit => this.exitItems(exit, fn)
+            )
+
+        return Promise.all([enterTransition.end(), updateTransition.end()])
+
+    }
+
+    static enterItems(selection, fn){
+
+        const groups = selection.append('g')
+            .attr('id', d => d.id)
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
+            .on('mouseover', (event, d) => onItemHover(event, d))
+            .on('mouseout', (event, d) => onItemOff(event, d))
+            .on('click', (event, d) => onItemClick(event, d))
+            
+
+        const text = groups.append('text')
+            .text(d => d.label)
+            .style('fill', styles.pageColour)
+            .attr('dx', 0)
+            .attr('dy', selectorItem.fontSize)
+            
+        return text.transition('textAppearing')
+            .duration(1000)
+            .style('fill', d => fn.styling.getTextColour(d))
+
+    }
+
+    static updateItems(selection, fn){
+        const groups = selection.transition('itemOrder')
+            .duration(350)
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
+
+        groups.select('text')
+            .style('font-weight', d => fn.styling.getFontWeight(d))
+            .style('fill', d => fn.styling.getTextColour(d))
+            
+
+        return groups
+    }
+
+    static exitItems(selection, fn){
+        return selection.remove()
+    }
+
+    static surfaceConnector(id, posNum){
+        const left = 15
+        //const top = this.posNum * 50 + 100
+        const div = d3.select('div#' + id + 'Div')
+        div.transition()
+            .ease(d3.easeCubicInOut)
+            .duration(350)
+            .delay(posNum * 50)
+            .style('left', left + 'px')
+            .style('background-color', styles.divColour)
+            .style('box-shadow', styles.divShadowUp)
+    }
+
+    sinkConnector(){
+
+    }
+}
+
+class connectorItemStyling {
+    getTextColour(d, i){
+        if(d.constructor.name === 'selectorLabel'){
+            return '#336BF0'
+        }  else {
+            return '#131C3E'
+        }
+    }
+
+    getFontWeight(d){
+        return d.selected ? 'bold' : 'normal'
+    }
+
+}
+
+class connectorItemPositioning {
+
+    getTranslate(d, i){
+        const x = selector.padding
+        const y = i * Math.round(selectorItem.fontSize * 1.618) + selector.padding
+        return d3Helper.getTranslateString(x, y)
+    }
+
+}
+
 
 class selector {
 
@@ -772,5 +919,4 @@ class d3Helper {
     static getTranslateString(x, y){
         return "translate(" + x + "," + y + ")"
     }
-} 
-
+}
