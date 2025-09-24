@@ -36,6 +36,11 @@ async function loadSelectors(){
     return Promise.resolve()
 }
 
+async function loadObligations(){
+    const obligations = obligationData.getSelectableItems()
+    return createConnectors(obligations, 'obligation')
+}
+
 async function loadConnectors(){
     const obligations = obligationData.getSelectableItems()
     const mechanisms = mechanismData.getObligationSelectableItems()
@@ -51,7 +56,7 @@ async function createConnectors(connectorItemLabels, type){
         const cn = new connector(type, itemLabel, i)
         cn.setup()
         connectors.obligations.push(cn) 
-        transitions[i] = connectorControl.renderItems(cn.id, cn.label, cn.itemLabel)
+        transitions[i] = connectorControl.renderItems(cn.id, cn.label, cn.itemLabel, cn.type)
         connectorControl.surfaceConnector(cn.id, i)
     }
 
@@ -415,9 +420,6 @@ class selectionManager {
         }
     }
 
-    static getItems(selectorLabel){
-        return selectors[selectorLabel].items
-    }
 
     static itemHighlightChange(d, eventType){
         const selectable = (item)=> item.constructor.name === 'selectorItem' && item.selectable
@@ -431,23 +433,61 @@ class selectionManager {
     }
 
     static async itemSelectionChange(d){
-        const elem = d3.select('#' + d.id)
-        const selectorLabel = elem.attr('class')
-        const items = selectors[selectorLabel].items
+        //const elem = d3.select('#' + d.id)
+        const selectorLabel = d.parentLabel //elem.attr('class')
+        //console.log(selectorLabel)
+        const items = this.getDisplayItems(d.parentLabel)
         
+
         this.updateItemSelection(d, items)
+
+       switch(d.parentLabel){
+            case 'enterprise':
+            case 'activity':
+                this.renderSelectorSelectionChange(d.parentLabel, items)
+                this.updateConnectors()
+                break;
+            case 'obligation':
+                this.renderConnectorSelectionChange()
+        }
+ 
+    }
+
+
+    static getDisplayItems(displayLabel){
+        switch(displayLabel){
+            case 'enterprise':
+            case 'activity':
+                return selectors[displayLabel].items
+            case 'obligation':
+                return connectors.obligations[0].items
+        }
+    }
+
+    static getItems(selectorLabel){
+        return selectors[selectorLabel].items
+    }
+  
+
+    static renderSelectorSelectionChange(selectorLabel, items){
         
         if(items.some(item => item.selected)){
             selectorControl.contract(selectorLabel)
         } else {
             selectorControl.expand(selectorLabel)
         }
-        
-        selectorControl.renderItems(selectorLabel)
-        this.updateSelectableStatus('activity')
-        selectorControl.renderItems('activity')
-        this.updateConnectors()
 
+        selectorControl.renderItems(selectorLabel)
+
+        if(selectorLabel === 'enterprise'){
+            this.updateSelectableStatus('activity')
+            selectorControl.renderItems('activity')
+        }
+        
+
+    }
+
+    static renderConnectorSelectionChange(){
         
     }
 
@@ -520,17 +560,20 @@ class selectionManager {
 class connector {
 
     static padding = 15
+    items = []
 
     constructor(type, itemLabel, posNum){
         this.id = type + (posNum + 1)
         this.label = type + ' #' + (posNum + 1)
         this.itemLabel = itemLabel
         this.posNum = posNum
+        this.type = type
     }
 
     setup(){
         this.createContainer()
         this.createCanvas()
+        this.createItems()
     }
 
     createContainer(){
@@ -554,16 +597,30 @@ class connector {
             .attr('id', this.id + 'Svg')
     }
 
+    createItems(){
+        this.items = [
+            new selectorLabel(this.label),
+            new selectorItem(this.itemLabel, true)
+        ]
+
+        this.items.forEach(item => item.parentLabel = this.label)
+    }
+
 }
 
 class connectorControl {
-    static async renderItems(id, label, itemLabel){
+    static async renderItems(id, label, itemLabel, type){
 
         const svg = d3.select('#' + id + 'Svg')
+        
         const data = [
             new selectorLabel(label),
             new selectorItem(itemLabel, true)
         ]
+
+        data.forEach(item => item.parentLabel = type)
+
+
         const fn = {
             positioning: new connectorItemPositioning (data),
             styling: new connectorItemStyling (data),
@@ -720,6 +777,7 @@ class selector {
 
     createItems(){
         this.items = selectionManager.getAllItems(this.label)
+        this.items.forEach(item => item.parentLabel = this.label)
     }
 
     unloadItems(){
