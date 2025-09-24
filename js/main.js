@@ -10,7 +10,6 @@ class styles {
 class selectors {
     static enterprise = {}
     static activity = {}
-    //static obligation = {}
 }
 
 class connectors {
@@ -37,11 +36,11 @@ async function loadSelectors(){
     return Promise.resolve()
 }
 
-
 async function loadConnectors(){
     const obligations = obligationData.getSelectableItems()
+    const mechanisms = mechanismData.getObligationSelectableItems()
+    console.log(mechanisms)
     return createConnectors(obligations, 'obligation')
-
 }
 
 async function createConnectors(connectorItemLabels, type){
@@ -890,6 +889,36 @@ class obligationData {
     }
 
     
+
+}
+
+class mechanismData {
+
+    static getItems (){
+        return [
+            new selectorLabel ('mechanism'),
+            new selectorItem ('entreprenuers bank account'),
+            new selectorItem ('government business registry'),
+        ]
+    }
+
+
+    static getObligationSelectableItems(obligationSelection){
+        console.log(obligationSelection)
+        const labels = []
+        switch(obligationSelection){
+            case 'calculate income tax':
+            case 'report income tax': 
+            case 'pay income tax':
+                labels.push('entreprenuers bank account')
+                break;
+            case 'register for income tax':
+                labels.push('entreprenuers bank account')
+                labels.push('government business registry')
+            break;
+        }
+        return labels
+    }
 
 }
 
