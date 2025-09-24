@@ -60,6 +60,16 @@ async function createConnectors(connectorItemLabels, type){
 
 }
 
+function unloadConnectors(){
+
+    const obligations = connectors.obligations
+
+    for(let i = 0; i < obligations.length; i++){
+        connectorControl.sinkConnector(obligations[i].id, i)
+    }
+    
+}
+
 async function loadSelector(selectorLabel){
     moveSelector(selectorLabel)
     await selectorControl.load(selectorLabel)
@@ -411,14 +421,11 @@ class selectionManager {
     }
 
     static itemHighlightChange(d, eventType){
-        console.log(d)
         const selectable = (item)=> item.constructor.name === 'selectorItem' && item.selectable
         const selected = (item) => item.selected
 
         if(!selected(d) && selectable(d)){
-            console.log(d.id)
             const elem = d3.select('#' + d.id)
-            console.log(elem)
             const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
             elem.select('text').style('font-weight', fontWeight)
         }
@@ -438,8 +445,15 @@ class selectionManager {
         }
         
         selectorControl.renderItems(selectorLabel)
+        this.updateSelectableStatus('activity')
+        selectorControl.renderItems('activity')
+        this.updateConnectors()
 
-        const selectionsMade = () => {
+        
+    }
+
+    static updateConnectors(){
+         const selectionsMade = () => {
             const selectorStates = this.getCurrentState()
             const keys = Object.keys(selectorStates)
         
@@ -452,13 +466,11 @@ class selectionManager {
             return true
         }
 
-        this.updateSelectableStatus('activity')
-        selectorControl.renderItems('activity')
-
         if(selectionsMade()){
             loadConnectors()
-        } 
-        
+        } else {
+            unloadConnectors()
+        }
     }
 
     static updateItemSelection(d, items){
@@ -622,7 +634,6 @@ class connectorControl {
 
     static surfaceConnector(id, posNum){
         const left = 15
-        //const top = this.posNum * 50 + 100
         const div = d3.select('div#' + id + 'Div')
         div.transition()
             .ease(d3.easeCubicInOut)
@@ -633,7 +644,18 @@ class connectorControl {
             .style('box-shadow', styles.divShadowUp)
     }
 
-    sinkConnector(){
+    static sinkConnector(id, posNum){
+        const left = 1000
+        const div = d3.select('div#' + id + 'Div')
+        const t = div.transition()
+            .ease(d3.easeCubicInOut)
+            .duration(350)
+            .delay(posNum * 50)
+            .style('left', left + 'px')
+            .style('background-color', styles.pageColour)
+            .style('box-shadow', styles.divShadowDown)
+            
+        t.end().then(() => div.remove())
 
     }
 }
