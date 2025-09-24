@@ -115,8 +115,17 @@ class selectorControl {
         return top + height  
     }
 
-    static expand(){
+    static contract(selectorLabel){
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
+        const height = Math.round(selectorItem.fontSize * gRatio) * 2 + selector.padding * 2
+        div.transition().duration(300).style('height', height + 'px')
+    }
 
+    static expand(selectorLabel){
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
+        const itemCount = selectors[selectorLabel].getItemCount()
+        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount + selector.padding * 2
+        div.transition().duration(300).style('height', height + 'px')
     }
 
 
@@ -229,13 +238,16 @@ class menuItemStyling {
     }
 
     getTextColour(d, i){
-        switch(d.constructor.name){
-            case 'selectorLabel':
-                return 'blue'
-            case 'selectorItem':
-                return d.selectable ? 'black' : 'grey'
-            default:
-                return 'black'
+        const selectedItemIndex = this.getSelectedItemIndex()
+
+        if(d.constructor.name === 'selectorLabel'){
+            return '#336BF0'
+        }  else if (selectedItemIndex > 0){
+            return d.selected ? '#131C3E' : 'white'
+        } else if (d.selectable) {
+            return '#131C3E'
+        } else {
+            return '#AEB3BD'
         }
     }
 
@@ -245,6 +257,10 @@ class menuItemStyling {
 
     getTextAnchor(d, fn){
         return fn.selectorLabel === 'obligation' ? 'end' : 'start'
+    }
+
+    getSelectedItemIndex(){
+        return this.items.findIndex(item => item.selected === true)
     }
 
 }
@@ -262,7 +278,13 @@ class menuItemPositioning {
     }
 
     getPosX(d){
-        return selector.padding       
+        const selectedIndex = this.getSelectedItemIndex()
+
+        if(selectedIndex === -1){
+            return selector.padding
+        } else {
+            return !d.selected && d.constructor.name !== 'selectorLabel' ? - 300 : selector.padding
+        }
     }
     
     getPosY(d, i){
@@ -271,27 +293,14 @@ class menuItemPositioning {
     }
 
     getListPosition(d, i){
-        return i
-        const selectedIndex = this.getSelectedItemIndex()
-
-        if(d.id === 'SideHustle'){
-            console.log(i)
-            console.log(selectedIndex)
-        }
-
-        if(selectedIndex < i){
-            return d.type === 'selectable' ? i : i
-        }
-
-        if(selectedIndex === i){
+        
+        if (d.constructor.name === 'selectorLabel'){
+            return i
+        } else if (d.selected){
             return 1
+        } else {
+            return i
         }
-
-        if(selectedIndex > i){
-            return d.type === 'selectable' ? i + 1 : i
-        }
-
-
     }
 
     getSelectedItemIndex(){
@@ -371,12 +380,24 @@ class selectionManager {
         const items = selectors[selectorLabel].items
         
         this.updateItemSelection(d, items)
+        
+        if(items.some(item => item.selected)){
+            selectorControl.contract(selectorLabel)
+        } else {
+            selectorControl.expand(selectorLabel)
+        }
+        
         selectorControl.renderItems(selectorLabel)
+
+        
 
         this.updateSelectableStatus('activity')
         this.updateSelectableStatus('obligation')
         selectorControl.renderItems('activity')
         selectorControl.renderItems('obligation')
+
+
+        
 
     }
 
@@ -387,6 +408,7 @@ class selectionManager {
         items.forEach(item => {
             item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
         })
+
     }
 
     static updateSelectableStatus(selectorLabel){
