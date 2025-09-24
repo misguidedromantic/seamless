@@ -20,8 +20,6 @@ window.onload = async function(){
     await loadSelector('enterprise')
     await loadSelector('activity')
     await loadSelector('obligation')
-
-    
 }
 
 async function loadSelector(selectorLabel){
@@ -37,7 +35,6 @@ function resizeSelector(selectorLabel){
     selectorControl.resize(selectorLabel)
 }
 
-
 function onItemHover(event, d){
     selectionManager.itemHighlightChange(d, event.type)
 }
@@ -49,9 +46,6 @@ function onItemOff(event, d){
 function onItemClick(event, d){
     selectionManager.itemSelectionChange(d)
 }
-
-
-
 
 class selectorControl {
 
@@ -76,7 +70,7 @@ class selectorControl {
         const selectorToLeft = this.getSelectorToLeft(selectorLabel)
         try { boundary = this.getRightBoundary(selectorToLeft)}
         catch { boundary = 0}
-        finally {return boundary + 10}
+        finally { return boundary + 15}
     }
 
     static getSelectorToLeft(selectorLabel){
@@ -121,13 +115,17 @@ class selectorControl {
         return top + height  
     }
 
+    static expand(){
+
+    }
+
 
     static resize(selectorLabel, duration = 500){
         const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
         const svg = d3.select('svg#'+ selectorLabel + 'SelectorSvg')
         const itemCount = selectors[selectorLabel].getItemCount()
-        const width = this.getWidestItemWidth(svg) + 10
-        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount 
+        const width = this.getWidestItemWidth(svg) + selector.padding * 3
+        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount + selector.padding * 2
         div.style('height', height + 'px').style('width', width + 'px')
         svg.attr('width', width).attr('height', height)
     }
@@ -153,9 +151,11 @@ class selectorControl {
     static async renderItems(selectorLabel){
         const svg = d3.select('#' + selectorLabel + 'SelectorSvg')
         const data = selectionManager.getItems(selectorLabel)
-        const positioning = new menuItemPositioning (data)
-        const styling = new menuItemStyling (data)
-        const itemClassText = selectorLabel
+        const fn = {
+            positioning: new menuItemPositioning (data),
+            styling: new menuItemStyling (data),
+            selectorLabel: selectorLabel
+        }
 
         let enterTransition = null;
         let updateTransition = null;
@@ -164,28 +164,28 @@ class selectorControl {
             .data(data, d => d.id)
             .join(
                 enter => {
-                    const t = this.enterItems(enter, itemClassText, positioning, styling)
+                    const t = this.enterItems(enter, fn)
                     enterTransition = t
                     return t
                 },
                 update => {
-                    const t = this.updateItems(update, positioning, styling)
+                    const t = this.updateItems(update, fn)
                     updateTransition = t
                     return t
                 },
-                exit => this.exitItems(exit)
+                exit => this.exitItems(exit, fn)
             )
 
         return enterTransition.end()
 
     }
 
-    static enterItems(selection, itemClassText, positioning, styling){
+    static enterItems(selection, fn){
 
         const groups = selection.append('g')
             .attr('id', d => d.id)
-            .attr('class', itemClassText)
-            .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
+            .attr('class', fn.selectorLabel)
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
             .on('mouseover', (event, d) => onItemHover(event, d))
             .on('mouseout', (event, d) => onItemOff(event, d))
             .on('click', (event, d) => onItemClick(event, d))
@@ -195,27 +195,29 @@ class selectorControl {
             .style('fill', 'white')
             .attr('dx', 0)
             .attr('dy', selectorItem.fontSize)
-
+            //.attr('text-anchor', d => fn.styling.getTextAnchor(d, fn))
+            
         return text.transition('textAppearing')
             .duration(0)
             .delay((d, i) => i * 0)
-            .style('fill', d => styling.getTextColour(d))
+            .style('fill', d => fn.styling.getTextColour(d))
 
     }
 
-    static updateItems(selection, positioning, styling){
+    static updateItems(selection, fn){
         const groups = selection.transition('itemOrder')
             .duration(350)
-            .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
 
         groups.select('text')
-            .style('font-weight', d => styling.getFontWeight(d))
-            .style('fill', d => styling.getTextColour(d))
+            .style('font-weight', d => fn.styling.getFontWeight(d))
+            .style('fill', d => fn.styling.getTextColour(d))
+            
 
         return groups
     }
 
-    static exitItems(selection){
+    static exitItems(selection, fn){
         return selection.remove()
     }
 
@@ -241,10 +243,9 @@ class menuItemStyling {
         return d.selected ? 'bold' : 'normal'
     }
 
-    getTextAnchor(d){
-        
+    getTextAnchor(d, fn){
+        return fn.selectorLabel === 'obligation' ? 'end' : 'start'
     }
-
 
 }
 
@@ -261,12 +262,12 @@ class menuItemPositioning {
     }
 
     getPosX(d){
-        return 10       
+        return selector.padding       
     }
     
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
-        return listPos * Math.round(selectorItem.fontSize * 1.618)
+        return listPos * Math.round(selectorItem.fontSize * 1.618) + selector.padding
     }
 
     getListPosition(d, i){
@@ -428,7 +429,7 @@ class selectionManager {
 class selector {
 
     items = []
-    dynamics = {}
+    static padding = 15
 
     constructor(label){
         this.label = label
@@ -447,6 +448,10 @@ class selector {
             .append('div').attr('id', this.id + 'Div')
             .style('position', 'absolute')
             .style('height', '1000px')
+            .style('background-color', 'white')
+            .style('border-radius', '10px')
+            .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
+
     }
 
     createCanvas(){
