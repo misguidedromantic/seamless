@@ -10,37 +10,33 @@ class selectors {
 
 window.onload = async function(){
 
-    function setupSelectors(){
+    function createSelectors(){
         selectors.enterprise = new selector ('enterprise')
         selectors.activity = new selector ('activity')
         selectors.obligation = new selector ('obligation')
     }
 
-    function positionSelectors(){
-        selectorControl.move('enterprise')
-        selectorControl.move('activity')
-        selectorControl.move('obligation')
-    }
+    createSelectors()
+    await loadSelector('enterprise')
+    await loadSelector('activity')
+    await loadSelector('obligation')
 
-    function sizeSelectors(){
-        selectorControl.resize('enterprise')
-        selectorControl.resize('activity')
-        selectorControl.resize('obligation')
-    }
-
-    function loadSelectors(){
-        selectorControl.load('enterprise')
-        selectorControl.load('activity')
-        selectorControl.load('obligation')
-    }
-
-    
-    setupSelectors()
-    positionSelectors()
-    sizeSelectors()
-    loadSelectors()
     
 }
+
+async function loadSelector(selectorLabel){
+    moveSelector(selectorLabel)
+    await selectorControl.load(selectorLabel)
+    selectorControl.resize(selectorLabel)
+}
+
+function moveSelector(selectorLabel){
+    selectorControl.move(selectorLabel)
+}
+function resizeSelector(selectorLabel){
+    selectorControl.resize(selectorLabel)
+}
+
 
 function onItemHover(event, d){
     selectionManager.itemHighlightChange(d, event.type)
@@ -55,16 +51,18 @@ function onItemClick(event, d){
 }
 
 
+
+
 class selectorControl {
 
-    static load(selectorLabel){
+    static async load(selectorLabel){
         selectionManager.updateSelectableStatus(selectorLabel)
-        this.renderItems(selectorLabel)
+        return this.renderItems(selectorLabel)
     }
 
     static move(selectorLabel, duration = 0){
         const left = this.getStartingLeft(selectorLabel)
-        const top = 40 //window.innerHeight - (window.innerHeight / gRatio
+        const top = this.getStartingTop(selectorLabel)
         const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
         div.transition()
             .ease(d3.easeCubicInOut)
@@ -74,49 +72,116 @@ class selectorControl {
     }
 
     static getStartingLeft(selectorLabel){
+        let boundary = null
+        const selectorToLeft = this.getSelectorToLeft(selectorLabel)
+        try { boundary = this.getRightBoundary(selectorToLeft)}
+        catch { boundary = 0}
+        finally {return boundary + 10}
+    }
+
+    static getSelectorToLeft(selectorLabel){
         switch(selectorLabel){
-            case 'enterprise':
-                return 0
             case 'activity':
-                return 190
             case 'obligation':
-                return 420
+                return 'enterprise'
         }
     }
+
+    static getRightBoundary(selectorLabel){
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
+        const left = this.pxStringToInteger(div.style('left'))
+        const width = this.pxStringToInteger(div.style('width'))
+        return left + width
+    }
+ 
+
+    static pxStringToInteger(pxString){
+        return parseInt(pxString.slice(0, pxString.indexOf('px')))
+    }
+
+    static getStartingTop(selectorLabel){
+        let boundary = null
+        const selectorAbove = this.getSelectorAbove(selectorLabel)
+        try { boundary = this.getBottomBoundary(selectorAbove)}
+        catch { boundary = 0}
+        finally {return boundary + 15}
+    }
+
+    static getSelectorAbove(selectorLabel){
+        switch(selectorLabel){
+            case 'obligation':
+                return 'activity'
+        }
+    }
+
+    static getBottomBoundary(selectorLabel){
+        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
+        const top = this.pxStringToInteger(div.style('top'))
+        const height = this.pxStringToInteger(div.style('height'))
+        return top + height  
+    }
+
 
     static resize(selectorLabel, duration = 500){
         const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
         const svg = d3.select('svg#'+ selectorLabel + 'SelectorSvg')
         const itemCount = selectors[selectorLabel].getItemCount()
-        const width = 200
+        const width = this.getWidestItemWidth(svg) + 10
         const height = Math.round(selectorItem.fontSize * gRatio) * itemCount 
-        
-        div.transition('resize')
-            .ease(d3.easeCubicInOut)
-            .duration(duration)
-            .style('height', height + 'px')
-            .style('width', width + 'px')
-
+        div.style('height', height + 'px').style('width', width + 'px')
         svg.attr('width', width).attr('height', height)
     }
 
-    static renderItems(selectorLabel){
+    static getWidestItemWidth(svg){
+        const gItems = svg.selectAll('g')
+        let widestWidth = 0
+        gItems.each((d, i) => {
+            const elemWidth = this.getElemWidth(d.id)
+            if(elemWidth > widestWidth){
+                widestWidth = elemWidth
+            }
+        })
+
+        return widestWidth
+    }
+
+    static getElemWidth(id){
+        const elem = d3.select('#' + id)
+        return parseInt(Math.ceil(elem.node().getBBox().width))
+    }
+
+    static async renderItems(selectorLabel){
         const svg = d3.select('#' + selectorLabel + 'SelectorSvg')
         const data = selectionManager.getItems(selectorLabel)
         const positioning = new menuItemPositioning (data)
         const styling = new menuItemStyling (data)
         const itemClassText = selectorLabel
 
+        let enterTransition = null;
+        let updateTransition = null;
+
         svg.selectAll('g.' + selectorLabel)
             .data(data, d => d.id)
             .join(
-                enter => this.enterItems(enter, itemClassText, positioning, styling),
-                update => this.updateItems(update, positioning, styling),
+                enter => {
+                    const t = this.enterItems(enter, itemClassText, positioning, styling)
+                    enterTransition = t
+                    return t
+                },
+                update => {
+                    const t = this.updateItems(update, positioning, styling)
+                    updateTransition = t
+                    return t
+                },
                 exit => this.exitItems(exit)
             )
+
+        return enterTransition.end()
+
     }
 
     static enterItems(selection, itemClassText, positioning, styling){
+
         const groups = selection.append('g')
             .attr('id', d => d.id)
             .attr('class', itemClassText)
@@ -125,17 +190,21 @@ class selectorControl {
             .on('mouseout', (event, d) => onItemOff(event, d))
             .on('click', (event, d) => onItemClick(event, d))
 
-        groups.append('text')
+        const text = groups.append('text')
             .text(d => d.label)
-            .style('fill', d => styling.getTextColour(d))
-            .attr('dx', 15)
+            .style('fill', 'white')
+            .attr('dx', 0)
             .attr('dy', selectorItem.fontSize)
-                    
-        return groups
+
+        return text.transition('textAppearing')
+            .duration(0)
+            .delay((d, i) => i * 0)
+            .style('fill', d => styling.getTextColour(d))
+
     }
 
     static updateItems(selection, positioning, styling){
-         const groups = selection.transition('itemOrder')
+        const groups = selection.transition('itemOrder')
             .duration(350)
             .attr('transform', (d, i) => {return positioning.getTranslate(d, i)})
 
@@ -148,6 +217,84 @@ class selectorControl {
 
     static exitItems(selection){
         return selection.remove()
+    }
+
+}
+
+class menuItemStyling {
+    constructor(items){
+        this.items = items
+    }
+
+    getTextColour(d, i){
+        switch(d.constructor.name){
+            case 'selectorLabel':
+                return 'blue'
+            case 'selectorItem':
+                return d.selectable ? 'black' : 'grey'
+            default:
+                return 'black'
+        }
+    }
+
+    getFontWeight(d){
+        return d.selected ? 'bold' : 'normal'
+    }
+
+    getTextAnchor(d){
+        
+    }
+
+
+}
+
+class menuItemPositioning {
+
+    constructor(items){
+        this.items = items
+    }
+
+    getTranslate(d, i){
+        const x = this.getPosX(d)
+        const y = this.getPosY(d, i)
+        return d3Helper.getTranslateString(x, y)
+    }
+
+    getPosX(d){
+        return 10       
+    }
+    
+    getPosY(d, i){
+        const listPos = this.getListPosition(d, i)
+        return listPos * Math.round(selectorItem.fontSize * 1.618)
+    }
+
+    getListPosition(d, i){
+        return i
+        const selectedIndex = this.getSelectedItemIndex()
+
+        if(d.id === 'SideHustle'){
+            console.log(i)
+            console.log(selectedIndex)
+        }
+
+        if(selectedIndex < i){
+            return d.type === 'selectable' ? i : i
+        }
+
+        if(selectedIndex === i){
+            return 1
+        }
+
+        if(selectedIndex > i){
+            return d.type === 'selectable' ? i + 1 : i
+        }
+
+
+    }
+
+    getSelectedItemIndex(){
+        return this.items.findIndex(item => item.selected === true)
     }
 
 }
@@ -299,6 +446,7 @@ class selector {
         this.div = d3.select('body')
             .append('div').attr('id', this.id + 'Div')
             .style('position', 'absolute')
+            .style('height', '1000px')
     }
 
     createCanvas(){
@@ -500,153 +648,6 @@ class obligationData {
 
 }
 
-class menuDynamics {
-
-    constructor(menuTitle, windowControl){
-        this.menuTitle = menuTitle
-        this.windowControl = windowControl
-    }
-
-    expand(items){
-        const currentWidth = this.windowControl.getWidth()
-        const multipler = this.#calculateHeightMultipler('expanded', items)
-        const expandedHeight = this.#calculateHeight(multipler)
-        return this.windowControl.resize(currentWidth, expandedHeight, 400)
-    }
-    
-    contract(items){
-        const currentWidth = this.windowControl.getWidth()
-        const multipler = this.#calculateHeightMultipler('contracted', items)
-        const contractedHeight = this.#calculateHeight(multipler)
-        return this.windowControl.resize(currentWidth, contractedHeight, 400)
-    }
-
-    move(leftOfX, duration){
-        const left = leftOfX + 5
-        const top = 40 //window.innerHeight - (window.innerHeight / gRatio
-        return this.windowControl.reposition(left, top, duration)
-    }
-
-    #calculateHeight(multipler){
-        return Math.round(selectorItem.fontSize * gRatio) * multipler  
-    }
-
-    #calculateHeightMultipler(viewType, items){
-        if(viewType === 'contracted'){
-            return this.#getSelectedItemIndex(items) > 0 ? 2 : 1     
-        } else {
-            return items.length
-        }
-    }
-
-    #getSelectedItemIndex(items){
-        return items.findIndex(item => item.selected === true)    
-    }
-
-    
-
-    getPositionLeft(){
-        const leftString = this.windowControl.div.style('left')
-        return parseInt(leftString.slice(0, leftString.indexOf('px')))
-    }
-
-    getWidestItemWidth(){
-        const svg = this.windowControl.svg //d3.select('#' + this.menuTitle + 'Svg')
-        const gItems = svg.selectAll('g')
-        let widestWidth = 0
-        gItems.each((d, i) => {
-            const elemWidth = this.getElemWidth(d.id)
-            if(elemWidth > widestWidth){
-                widestWidth = elemWidth
-            }
-        })
-        return widestWidth
-    }
-
-    getElemWidth(id){
-        const elem = d3.select('#' + id)
-        return parseInt(Math.ceil(elem.node().getBBox().width))
-    }
-
-}
-
-class menuItemStyling {
-    constructor(items){
-        this.items = items
-    }
-
-    getTextColour(d){
-        switch(d.constructor.name){
-            case 'selectorLabel':
-                return 'blue'
-            case 'selectorItem':
-                return d.selectable ? 'black' : 'grey'
-            default:
-                return 'black'
-        }
-    }
-
-    getFontWeight(d){
-        return d.selected ? 'bold' : 'normal'
-    }
-
-
-}
-
-class menuItemPositioning {
-
-    constructor(items){
-        this.items = items
-    }
-
-    getTranslate(d, i){
-        const x = this.getPosX(d)
-        const y = this.getPosY(d, i)
-        return d3Helper.getTranslateString(x, y)
-    }
-
-    getPosX(d){
-        
-        if(d.type === 'selector'){
-            return 50
-        } else {return 10}
-        
-    }
-    
-    getPosY(d, i){
-        const listPos = this.getListPosition(d, i)
-        return listPos * Math.round(selectorItem.fontSize * 1.618)
-    }
-
-    getListPosition(d, i){
-        return i
-        const selectedIndex = this.getSelectedItemIndex()
-
-        if(d.id === 'SideHustle'){
-            console.log(i)
-            console.log(selectedIndex)
-        }
-
-        if(selectedIndex < i){
-            return d.type === 'selectable' ? i : i
-        }
-
-        if(selectedIndex === i){
-            return 1
-        }
-
-        if(selectedIndex > i){
-            return d.type === 'selectable' ? i + 1 : i
-        }
-
-
-    }
-
-    getSelectedItemIndex(){
-        return this.items.findIndex(item => item.selected === true)
-    }
-
-}
 
 class selectorItem {
 
