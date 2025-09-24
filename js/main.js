@@ -3,29 +3,54 @@ const gRatio = 1.618
 class selectors {
     static enterprise = {}
     static activity = {}
-    static obligation = {}
-    static process = {}
-    static mechanism = {}
+    //static obligation = {}
 }
+
+class connectors {
+    static obligations = []
+    static capabilities = []
+    static mechanisms = []
+}
+
 
 window.onload = async function(){
 
     function createSelectors(){
         selectors.enterprise = new selector ('enterprise')
         selectors.activity = new selector ('activity')
-        selectors.obligation = new selector ('obligation')
     }
 
+
+
     createSelectors()
+    await loadSelectors()
+}
+
+async function loadSelectors(){
     await loadSelector('enterprise')
     await loadSelector('activity')
-    await loadSelector('obligation')
+    return Promise.resolve()
+}
+
+
+async function loadConnectors(){
+    const obligations = obligationData.getSelectableItems()
+    obligations.forEach(obligation => {
+        connectors.obligations.push(new connector(obligation, 'obligation'))
+    })
+
 }
 
 async function loadSelector(selectorLabel){
     moveSelector(selectorLabel)
     await selectorControl.load(selectorLabel)
     selectorControl.resize(selectorLabel)
+}
+
+async function loadConnector(connectorLabel){
+    //moveSelector(connectorLabel)
+    await connectorControl.load(connectorLabel)
+    connectorControl.resize(connectorLabel)
 }
 
 function moveSelector(selectorLabel){
@@ -389,17 +414,29 @@ class selectionManager {
         
         selectorControl.renderItems(selectorLabel)
 
+        const selectionsMade = () => {
+            const selectorStates = this.getCurrentState()
+            const keys = Object.keys(selectorStates)
         
+            for (const key of keys){
+                if(selectorStates[key] === undefined){
+                    return false
+                }
+            }
+
+            return true
+        }
 
         this.updateSelectableStatus('activity')
-        this.updateSelectableStatus('obligation')
         selectorControl.renderItems('activity')
-        selectorControl.renderItems('obligation')
 
-
+        if(selectionsMade()){
+            loadConnectors()
+        } 
         
-
     }
+
+     
 
 
     static updateItemSelection(d, items){
@@ -414,7 +451,6 @@ class selectionManager {
     static updateSelectableStatus(selectorLabel){
         const selectorItems = selectors[selectorLabel].items
         const selectableItemLabels = this.getSelectableItems(selectorLabel)
-
 
         selectorItems.forEach(item => {
             if(selectableItemLabels.includes(item.label)){
@@ -446,6 +482,39 @@ class selectionManager {
             });
         }
     }
+}
+
+class connector {
+
+    static padding = 15
+
+    constructor(label, type){
+        this.label = label
+        this.id = label + type
+        this.type = type
+        this.setup()
+    }
+
+     setup(){
+        this.createContainer()
+        this.createCanvas()
+    }
+
+    createContainer(){
+        this.div = d3.select('body')
+            .append('div').attr('id', this.id + 'Div')
+            .style('position', 'absolute')
+            .style('background-color', 'white')
+            .style('border-radius', '10px')
+            .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
+
+    }
+
+    createCanvas(){
+        this.svg = this.div.append('svg')
+            .attr('id', this.id + 'Svg')
+    }
+
 }
 
 class selector {
@@ -513,26 +582,6 @@ class selector {
 
     getLabel(){
         return this.label
-    }
-
-    setupWindow(){
-        const thisWindowControl = new windowControl()
-        thisWindowControl.createDiv(this.constructor.name)
-        thisWindowControl.createSVG(this.constructor.name)
-        this.dynamics = new menuDynamics(this.constructor.name, thisWindowControl)
-    }
-
-    setPosition(selectorToLeft, duration){
-        let xStart = undefined
-        try { xStart = selectorToLeft.getRightBoundary() }
-        catch { xStart = 0}
-        finally {return this.dynamics.move(xStart, duration)}
-    }
-
-    getRightBoundary(){
-        const left = this.dynamics.getPositionLeft()
-        const width = this.dynamics.getWidestItemWidth()
-        return left + width
     }
 
 }
