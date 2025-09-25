@@ -21,14 +21,118 @@ class connectors {
 
 window.onload = async function(){
 
-    function createSelectors(){
-        selectors.enterprise = new selector ('enterprise')
-        selectors.activity = new selector ('activity')
+
+    
+    const factory = new cardFactory ()
+    const handler = new dataHandler ()
+    const dynamics = new cardDynamics ()
+    
+    const cards = [
+        factory.createCard('listBoxCard', 'Enterprise'),
+        factory.createCard('listBoxCard', 'Activity')
+    ]
+    cards.forEach(card => {
+        cardHolder.add(card)
+        card.items = handler.getCardData(card.title)
+        dynamics.emerge(card)
+    })
+
+    console.log(cardHolder.cards['enterprise'])
+    
+}
+
+class listBoxCard {
+    constructor(title){
+        this.title = title
+        this.id = this.title.toLowerCase()
+    }
+}
+class optionCard {
+    constructor(title){
+        this.title = title
+        this.id = this.title.toLowerCase()
+    }
+}
+
+
+class cardHolder {
+    static cards = {}
+
+    static add(card){
+        this.cards[card.id] = card
+    }
+}
+
+class cardFactory {
+    createCard(type, title){
+        const card = this.#createObject(type, title)
+        this.#addDiv(card)
+        this.#addSvg(card)
+        return card
+    }
+    
+    #createObject(type, title){
+        switch(type){
+            case 'listBoxCard':
+                return new listBoxCard(title)
+            case 'optionCard':
+                return new optionCard(title)
+        }
     }
 
-    createSelectors()
-    await loadSelectors()
+    #addDiv(card){
+        card.div = d3.select('body')
+            .append('div')
+            .attr('id', card.id + 'Div')
+            .style('position', 'absolute')
+    }
+
+    #addSvg(card){
+        card.svg = card.div.append('svg')
+            .attr('id', card.id + 'Svg')
+    }
+
 }
+
+class cardDynamics {
+    renderItems(card){
+        
+    }
+    
+    emerge(card){
+        return card.div.transition()
+            .duration(500)
+            .ease(d3.easeCubicIn)
+                .style('background-color', 'white')
+                .style('border-radius', '10px')
+                .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
+    }
+
+
+}
+
+class dataHandler{
+    getCardData(title){
+        switch(title){
+            case 'Enterprise':
+                return enterpriseData.getItems()
+            case 'Activity':
+                return activityData.getItems()
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 async function loadSelectors(){
     await loadSelector('enterprise')

@@ -1,3 +1,78 @@
+const elementsCorrectlyCreated = function(checkElements){
+        const results = []
+
+        
+
+        
+
+        checkElements.forEach(checkElem => {
+            const domElem = document.getElementById(checkElem.id)
+            const resultDescription = checkElem.id + ' created correctly'
+            results.push(new testResult(resultDescription, calculateResult(checkElem, domElem)))
+        })
+        
+        return results
+}
+
+const idFound = function(domElem){return domElem !== null}
+
+const typeMatch = function(domElem, checkElem){
+    try{return domElem.tagName === checkElem.tagName}
+    catch{return false}
+}
+
+
+
+
+const elementCorrectlyCreated = function(id, tagName, domElem){
+    let result = 'fail'
+    let reason = ''
+
+    if(!idFound(domElem)){
+        reason = ' (not found)'
+    } else if (!typeMatch(domElem, checkElem)){
+        reason = ' (found as: ' + domElem.tagName + ')'
+    }
+
+    if(idFound(domElem, checkElem) && typeMatch(domElem, checkElem)){
+        result = 'pass'
+    }
+
+    return result + reason
+}
+
+const cardCorrectyCreated = function(cardToCheck){
+    
+    cardToCheck.domElements.forEach(elemType => {
+        const id = cardToCheck.title + capitalizeFirstLetter(elemType)
+        const tagName = elemType.toUpperCase()
+        const domElem = document.getElementById(id)
+        elementCorrectlyCreated(id, tagName, domElem)
+    })
+}
+
+
+
+function testCardCreation(){
+
+    const cardChecks = [
+        {cardTitle: 'enterprise', domElements: ['div', 'svg']},
+        {cardTitle: 'activity', domElements: ['div', 'svg']}
+    ]
+
+    cardChecks.forEach(card => {
+
+    })
+
+
+}
+
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+
+
 
 
 function testSelectionFilters(){
@@ -110,43 +185,7 @@ function runTestSuite(){
         allResults.forEach(result => result.print())
     }
 
-    const elementsCorrectlyCreated = function(checkElements){
-        const results = []
 
-        const idFound = function(domElem){
-            return domElem !== null
-        }
-
-        const typeMatch = function(domElem, checkElem){
-            try{return domElem.tagName === checkElem.tagName}
-            catch{return false}
-        }
-
-        const calculateResult = function(checkElem, domElem){
-            let result = 'fail'
-            let reason = ''
-
-            if(!idFound(domElem)){
-                reason = ' (not found)'
-            } else if (!typeMatch(domElem, checkElem)){
-                reason = ' (found as: ' + domElem.tagName + ')'
-            }
-
-            if(idFound(domElem, checkElem) && typeMatch(domElem, checkElem)){
-                result = 'pass'
-            }
-
-            return result + reason
-        }
-
-        checkElements.forEach(checkElem => {
-            const domElem = document.getElementById(checkElem.id)
-            const resultDescription = checkElem.id + ' created correctly'
-            results.push(new testResult(resultDescription, calculateResult(checkElem, domElem)))
-        })
-        
-        return results
-    }
 
     const checkElements = [
         new checkElement('smeSelectorDiv','div'),
