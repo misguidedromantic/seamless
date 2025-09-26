@@ -18,23 +18,18 @@ class connectors {
     static mechanisms = []
 }
 
-
 window.onload = async function(){
-
-
-    
     const factory = new cardFactory ()
-    const handler = new dataHandler ()
-    const dynamics = new cardDynamics ()
-    
+    const control = new cardControl ()
+
     const cards = [
         factory.createCard('listBoxCard', 'Enterprise'),
         factory.createCard('listBoxCard', 'Activity')
     ]
+
     cards.forEach(card => {
         cardHolder.add(card)
-        card.items = handler.getCardData(card.title)
-        dynamics.emerge(card)
+        control.load(card)
     })
 
     console.log(cardHolder.cards['enterprise'])
@@ -42,6 +37,7 @@ window.onload = async function(){
 }
 
 class listBoxCard {
+    maxVisibleItems = 6
     constructor(title){
         this.title = title
         this.id = this.title.toLowerCase()
@@ -64,6 +60,7 @@ class cardHolder {
 }
 
 class cardFactory {
+
     createCard(type, title){
         const card = this.#createObject(type, title)
         this.#addDiv(card)
@@ -94,11 +91,25 @@ class cardFactory {
 
 }
 
-class cardDynamics {
-    renderItems(card){
-        
+class cardControl {
+
+    constructor(){
+        this.handler = new dataHandler ()
+        this.dynamics = new cardDynamics ()
+        this.contentDynamics = new cardContentDynamics ()
     }
-    
+
+    load(card){
+        card.items = this.handler.getCardData(card.title)
+        this.contentDynamics.renderItems(card)
+        this.dynamics.expand(card)
+        this.dynamics.emerge(card)
+    }
+
+}
+
+class cardDynamics {
+
     emerge(card){
         return card.div.transition()
             .duration(500)
@@ -107,6 +118,96 @@ class cardDynamics {
                 .style('border-radius', '10px')
                 .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
     }
+
+    expand(card){
+
+        const calculateHeight = (itemCount) => {
+            return itemCount * Math.round(selectorItem.fontSize * 1.618) + selector.padding
+        }
+
+        const divHeight = calculateHeight(card.maxVisibleItems)
+        const svgHeight = calculateHeight(card.items.count)
+
+        card.div.style('height', divHeight + 'px')
+        card.svg.style('height', svgHeight)
+    }
+
+
+
+
+}
+
+class cardContentDynamics {
+    async renderItems(card){
+        const fn = {
+            positioning: new selectorItemPositioning (card.items),
+            styling: new selectorItemStyling (card.items),
+        }
+
+        const transitions = []
+
+        card.svg.selectAll('g')
+            .data(card.items, d => d.id)
+            .join(
+                enter => {
+                    const t = this.enterItems(enter, fn)
+                    transitions.push(t)
+                    return t
+                },
+                update => {
+                    const t = this.updateItems(update, fn)
+                    transitions.push(t)
+                    return t
+                },
+                exit => this.exitItems(exit, fn)
+            )
+
+        return Promise.all(transitions)
+
+    }
+
+    enterItems(selection, fn){
+
+        const groups = selection.append('g')
+            .attr('id', d => d.id)
+            .attr('class', fn.selectorLabel)
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
+            .on('mouseover', (event, d) => onItemHover(event, d))
+            .on('mouseout', (event, d) => onItemOff(event, d))
+            .on('click', (event, d) => onItemClick(event, d))
+
+        const text = groups.append('text')
+            .text(d => d.label)
+            .style('fill', 'white')
+            .attr('dx', 0)
+            .attr('dy', selectorItem.fontSize)
+            //.attr('text-anchor', d => fn.styling.getTextAnchor(d, fn))
+            
+        return text.transition('textAppearing')
+            .duration(0)
+            .delay((d, i) => i * 0)
+            .style('fill', d => fn.styling.getTextColour(d))
+
+    }
+
+    updateItems(selection, fn){
+        const groups = selection.transition('itemOrder')
+            .duration(350)
+            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
+
+        groups.select('text')
+            .style('font-weight', d => fn.styling.getFontWeight(d))
+            .style('fill', d => fn.styling.getTextColour(d))
+            
+
+        return groups
+    }
+
+    exitItems(selection, fn){
+        return selection.remove()
+    }
+
+
 
 
 }
@@ -121,18 +222,6 @@ class dataHandler{
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 async function loadSelectors(){
     await loadSelector('enterprise')
