@@ -19,14 +19,68 @@ class connectors {
 }
 
 window.onload = async function(){
-    const factory = new cardFactory ()
-    const control = new cardControl ()
+    displayOrchestration.setup()
+    displayOrchestration.createDisplay('listBoxCard', 'Enterprise')
+    displayOrchestration.createDisplay('listBoxCard', 'Activity')
 
-    cardHolder.add(factory.createCard('listBoxCard', 'Enterprise'))
-    cardHolder.add(factory.createCard('listBoxCard', 'Activity'))
+    await displayOrchestration.loadCard('enterprise')
+    displayOrchestration.loadCard('activity')
 
-    await control.load(cardHolder.cards['enterprise'])
-    control.load(cardHolder.cards['activity'])
+}
+
+class displays {
+    static cards = {}
+
+    static addCard(card){
+        this.cards[card.id] = card
+    }
+
+}
+
+class displayOrchestration {
+    static #factory = {}
+    static #cardControl = {}
+    static #selectionManager = {}
+    
+    static setup(){
+        this.#factory = new cardFactory
+        this.#cardControl = new cardControl
+        this.#selectionManager = new selectionManager
+    }
+
+    static createDisplay(displayType, displayTitle){
+        switch(displayType){
+            case 'listBoxCard':
+                displays.addCard(this.#factory.createCard(displayType, displayTitle))
+        }
+    }
+
+    static loadCard(cardID){
+        const card = displays.cards[cardID]
+        return this.#cardControl.load(card)
+    }
+
+    static updateFromItemClick(clickedItem){
+        const clickedCard = displays.cards[clickedItem.cardID]
+        this.#selectionManager.updateItemSelection(clickedItem.id, clickedCard.items)
+        this.#cardControl.renderSelectionChange(clickedCard)
+        const dependents = this.getDependentDisplays(clickedCard.id)
+        dependents.forEach(display => {
+            this.#selectionManager.updateSelectableStatus(display)
+            this.#cardControl.renderSelectionChange(display)
+
+        })
+    }
+
+    static getDependentDisplays(displayID){
+        switch(displayID){
+            case 'enterprise':
+                return [displays.cards['activity']]
+
+        }
+    }
+
+
 
 }
 
@@ -89,7 +143,7 @@ class cardPositioning {
             case 'Enterprise':
                 return null;
             case 'Activity':
-                return cardHolder.cards['enterprise']
+                return displays.cards['enterprise']
         }
     }
 
@@ -175,6 +229,19 @@ class cardControl {
         return this.dynamics.emerge(card)
     }
 
+    renderSelectionChange(card){
+        if(card.items.some(item => item.selected)){
+            this.dynamics.contract(card)
+        } else {
+            this.dynamics.expand(card)
+        }
+
+        this.contentDynamics.renderItems(card)
+    }
+
+
+
+
 }
 
 class cardDynamics {
@@ -190,7 +257,8 @@ class cardDynamics {
 
     expand(card){
         const calculateHeight = (itemCount) => {
-            return itemCount * Math.round(selectorItem.fontSize * 1.618) + selector.padding
+            const itemHeight = Math.round(selectorItem.fontSize * 1.618)
+            return itemCount * itemHeight + selector.padding
         }
 
         const width = cardSizing.calculateCardWidth(card.id)
@@ -205,6 +273,20 @@ class cardDynamics {
     move(card, coordinates){
         card.div.style('top', coordinates.top + 'px')
             .style('left', coordinates.left + 'px')
+    }
+
+    contract(card){
+        const calculateHeight = (itemCount) => {
+            const itemHeight = Math.round(selectorItem.fontSize * 1.618)
+            return itemCount * itemHeight + selector.padding
+        }
+
+        const divHeight = calculateHeight(card.maxVisibleItems)
+        const svgHeight = calculateHeight(card.items.count)
+
+        card.div.style('height', divHeight + 'px')
+        card.svg.style('height', svgHeight)
+
     }
 
 
@@ -291,6 +373,20 @@ class dataHandler{
                 return activityData.getItems()
         }
     }
+
+    getSelectableItems(cardID){
+        switch(cardID){
+            case 'enterprise':
+                return enterpriseData.getItems()
+            case 'activity':
+                return activityData.getSelectableItems()
+            case 'obligation':
+                return obligationData.getSelectableItems()
+        }
+    }
+
+
+
 }
 
 async function loadSelectors(){
@@ -307,7 +403,6 @@ async function loadObligations(){
 async function loadConnectors(){
     const obligations = obligationData.getSelectableItems()
     const mechanisms = mechanismData.getObligationSelectableItems()
-    console.log(mechanisms)
     return createConnectors(obligations, 'obligation')
 }
 
@@ -357,7 +452,6 @@ function resizeSelector(selectorLabel){
 }
 
 function onItemHover(event, d){
-    console.log(d)
     selectionManager.itemHighlightChange(d, event.type)
 }
 
@@ -366,7 +460,7 @@ function onItemOff(event, d){
 }
 
 function onItemClick(event, d){
-    selectionManager.itemSelectionChange(d)
+    displayOrchestration.updateFromItemClick(d)
 }
 
 class selectorControl {
@@ -636,6 +730,51 @@ class selectorItemPositioning {
 
 class selectionManager {
 
+    getSelectionState(){
+        const cardArray = Object.values(displays.cards)
+        let selectionsArray = {}
+        cardArray.forEach(card => {
+            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
+        })
+        return selectionsArray
+    }
+
+    getSelectedItemLabel(items){
+        const selectedItem = this.getSelectedItem(items)
+        try{return selectedItem.label}
+        catch{return undefined}
+    }
+
+    getSelectedItem(items){
+        return items.find(item => item.selected === true)
+    }
+
+    updateItemSelection(itemID, itemsOnCard){
+        const selectable = (item)=> item.constructor.name === 'selectorItem'
+        const idMatch = (item)=> item.id === itemID
+        itemsOnCard.forEach(item => {
+            item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
+        })
+    }
+
+    updateSelectableStatus(card){
+        const items = card.items
+        const selectionState = this.getSelectionState()
+        console.log(selectionState)
+        
+        
+        //const selectableItemLabels = this.getSelectableItems(card.id)
+
+/*         card.items.forEach(item => {
+            if(selectableItemLabels.includes(item.label)){
+                item.selectable = true
+            } else {
+                item.selectable = false
+            }
+        }) */
+    }
+
+    
 
     static selectorArray = ()=>{
         return [
@@ -645,16 +784,7 @@ class selectionManager {
         ]
     }
 
-    static getSelectableItems(selectorLabel){
-        switch(selectorLabel){
-            case 'enterprise':
-                return enterpriseData.getSelectableItems()
-            case 'activity':
-                return activityData.getSelectableItems()
-            case 'obligation':
-                return obligationData.getSelectableItems()
-        }
-    }
+ 
 
     static getCurrentState(){
 
@@ -697,14 +827,15 @@ class selectionManager {
     }
 
     static async itemSelectionChange(d){
-        const items = cardHolder.cards[d.cardID].items
-        this.updateItemSelection(d, items)
+        const card = displays.cards[d.cardID]
+        this.updateItemSelection(d, card.items)
 
        switch(d.cardID){
             case 'enterprise':
             case 'activity':
-                this.renderSelectorSelectionChange(d.parentLabel, items)
-                this.updateConnectors()
+                displayOrchestration.renderSelectionChange(card)
+                //this.renderSelectorSelectionChange(card)
+                //this.updateConnectors()
                 break;
             case 'obligation':
                 this.renderConnectorSelectionChange()
@@ -728,12 +859,11 @@ class selectionManager {
     }
   
 
-    static renderSelectorSelectionChange(selectorLabel, items){
-        
-        if(items.some(item => item.selected)){
-            selectorControl.contract(selectorLabel)
+    static renderSelectorSelectionChange(card){
+        if(card.items.some(item => item.selected)){
+            control.contract(card)
         } else {
-            selectorControl.expand(selectorLabel)
+            control.expand(card)
         }
 
         selectorControl.renderItems(selectorLabel)
@@ -742,7 +872,7 @@ class selectionManager {
             this.updateSelectableStatus('activity')
             selectorControl.renderItems('activity')
         }
-        
+
 
     }
 
@@ -771,27 +901,9 @@ class selectionManager {
         }
     }
 
-    static updateItemSelection(d, items){
-        const selectable = (item)=> item.constructor.name === 'selectorItem'
-        const idMatch = (item)=> item.id === d.id
-        items.forEach(item => {
-            item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
-        })
+    
 
-    }
-
-    static updateSelectableStatus(selectorLabel){
-        const selectorItems = selectors[selectorLabel].items
-        const selectableItemLabels = this.getSelectableItems(selectorLabel)
-
-        selectorItems.forEach(item => {
-            if(selectableItemLabels.includes(item.label)){
-                item.selectable = true
-            } else {
-                item.selectable = false
-            }
-        })
-    }
+    
 
     static deselectOtherItems(items){
         const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
@@ -1055,15 +1167,9 @@ class selector {
         return this.items.findIndex(item => item.selected === true)
     }
 
-    getSelectedItem(){
-        return this.items.find(item => item.selected === true)
-    }
+    
 
-    getSelectedItemLabel(){
-        const item = this.getSelectedItem()
-        try{return item.label}
-        catch{return undefined}
-    }
+    
 
     getLabel(){
         return this.label
@@ -1111,11 +1217,10 @@ class activityData {
         ]
     }
 
-    static getSelectableItems(){
+    static getSelectableItems(selectionState){
         let labels = []
-        const selectorStates = selectionManager.getCurrentState()
-        
-        switch(selectorStates['enterprise']){
+
+        switch(selectionState['enterprise']){
             case 'construction company':
                 labels.push('paying employees')
             case 'freelance profressional':
@@ -1233,7 +1338,6 @@ class mechanismData {
 
 
     static getObligationSelectableItems(obligationSelection){
-        console.log(obligationSelection)
         const labels = []
         switch(obligationSelection){
             case 'calculate income tax':
