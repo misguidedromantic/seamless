@@ -22,22 +22,18 @@ window.onload = async function(){
     const factory = new cardFactory ()
     const control = new cardControl ()
 
-    const cards = [
-        factory.createCard('listBoxCard', 'Enterprise'),
-        factory.createCard('listBoxCard', 'Activity')
-    ]
+    cardHolder.add(factory.createCard('listBoxCard', 'Enterprise'))
+    cardHolder.add(factory.createCard('listBoxCard', 'Activity'))
 
-    cards.forEach(card => {
-        cardHolder.add(card)
-        control.load(card)
-    })
+    await control.load(cardHolder.cards['enterprise'])
+    control.load(cardHolder.cards['activity'])
 
-    console.log(cardHolder.cards['enterprise'])
-    
 }
 
 class listBoxCard {
-    maxVisibleItems = 6
+    maxVisibleItems = 7
+    left = 0
+    top = 0
     constructor(title){
         this.title = title
         this.id = this.title.toLowerCase()
@@ -57,6 +53,70 @@ class cardHolder {
     static add(card){
         this.cards[card.id] = card
     }
+
+}
+
+class cardPositioning {
+    static getCardXY(cardTitle){
+        const titleToLeft = this.getCardTitleToLeft(cardTitle)
+        if(titleToLeft !== null){
+            const card = cardHolder[titleToLeft]
+            console.log(card)
+        }
+        
+    }
+
+    static calculateX(titleToLeft){
+        console.log(titleToLeft)
+        if(titleToLeft !== null){
+            const card = cardHolder[titleToLeft]
+            console.log(cardSizing.calculateCardWidth(titleToLeft))
+        }
+        
+        try{return cardHolder[titleToLeft].left + cardSizing.calculateCardWidth(titleToLeft)}
+        catch{return 0}
+    }
+    
+    static getCardTitleToLeft(cardTitle){ 
+        switch(cardTitle){
+            case 'Enterprise':
+                return null;
+            case 'Activity':
+                return 'Enterprise';
+        }
+    }
+
+    static getCardAbove(){
+
+    }
+}
+
+class cardSizing {
+    static calculateCardWidth (cardID){
+
+        return this.getWidestItemWidth(cardID)
+
+    }
+
+    static getWidestItemWidth(cardID){
+        const svg = d3.select('#' + cardID + 'Svg')
+        const gItems = svg.selectAll('g')
+        let widestWidth = 0
+        gItems.each((d, i) => {
+            const elemWidth = this.getElemWidth(d.id)
+            if(elemWidth > widestWidth){
+                widestWidth = elemWidth
+            }
+        })
+
+        return widestWidth
+    }
+
+    static getElemWidth(id){
+        const elem = d3.select('#' + id)
+        return parseInt(Math.ceil(elem.node().getBBox().width))
+    }
+
 }
 
 class cardFactory {
@@ -99,11 +159,12 @@ class cardControl {
         this.contentDynamics = new cardContentDynamics ()
     }
 
-    load(card){
+    async load(card){
         card.items = this.handler.getCardData(card.title)
-        this.contentDynamics.renderItems(card)
+        await this.contentDynamics.renderItems(card)
         this.dynamics.expand(card)
-        this.dynamics.emerge(card)
+        cardPositioning.getCardXY(card.title)
+        return this.dynamics.emerge(card)
     }
 
 }
@@ -117,19 +178,25 @@ class cardDynamics {
                 .style('background-color', 'white')
                 .style('border-radius', '10px')
                 .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
+            .end()
     }
 
     expand(card){
-
         const calculateHeight = (itemCount) => {
             return itemCount * Math.round(selectorItem.fontSize * 1.618) + selector.padding
         }
 
+        const width = cardSizing.calculateCardWidth(card.id)
+
         const divHeight = calculateHeight(card.maxVisibleItems)
         const svgHeight = calculateHeight(card.items.count)
 
-        card.div.style('height', divHeight + 'px')
-        card.svg.style('height', svgHeight)
+        card.div.style('height', divHeight + 'px').style('width', width + 'px')
+        card.svg.style('height', svgHeight).style('width', width)
+    }
+
+    move(card, coordinates){
+        
     }
 
 
@@ -139,6 +206,7 @@ class cardDynamics {
 
 class cardContentDynamics {
     async renderItems(card){
+        console.log('render start')
         const fn = {
             positioning: new selectorItemPositioning (card.items),
             styling: new selectorItemStyling (card.items),
@@ -161,8 +229,8 @@ class cardContentDynamics {
                 },
                 exit => this.exitItems(exit, fn)
             )
-
-        return Promise.all(transitions)
+        
+        return Promise.all(transitions.map(t => t.end()))
 
     }
 
