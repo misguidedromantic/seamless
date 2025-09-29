@@ -46,7 +46,6 @@ class optionCard {
     }
 }
 
-
 class cardHolder {
     static cards = {}
 
@@ -57,45 +56,52 @@ class cardHolder {
 }
 
 class cardPositioning {
-    static getCardXY(cardTitle){
-        const titleToLeft = this.getCardTitleToLeft(cardTitle)
-        if(titleToLeft !== null){
-            const card = cardHolder[titleToLeft]
-            console.log(card)
+    static calculateStartingPosition(card){
+        const cardToLeft= this.getCardToLeft(card)
+        return {
+            left: this.calculateX(cardToLeft),
+            top: this.calculateY(cardToLeft)
         }
-        
     }
 
-    static calculateX(titleToLeft){
-        console.log(titleToLeft)
-        if(titleToLeft !== null){
-            const card = cardHolder[titleToLeft]
-            console.log(cardSizing.calculateCardWidth(titleToLeft))
+    static calculateX(cardToLeft){
+        if(cardToLeft !== null){
+            const left = parseInt(this.getCardLeftValue(cardToLeft.id))
+            const width = parseInt(cardSizing.calculateCardWidth(cardToLeft.id))
+            return left + width + selector.padding
+        } else {
+            return selector.padding
         }
-        
-        try{return cardHolder[titleToLeft].left + cardSizing.calculateCardWidth(titleToLeft)}
-        catch{return 0}
+
+    }
+
+    static calculateY(cardAbove){
+            return selector.padding
+    }
+
+    static getCardLeftValue(cardID){
+        const stringLeft = d3.select('#' + cardID + 'Div').style('left')
+        return stringLeft.slice(0, stringLeft.indexOf('px'))
     }
     
-    static getCardTitleToLeft(cardTitle){ 
-        switch(cardTitle){
+    static getCardToLeft(card){ 
+        switch(card.title){
             case 'Enterprise':
                 return null;
             case 'Activity':
-                return 'Enterprise';
+                return cardHolder.cards['enterprise']
         }
     }
 
-    static getCardAbove(){
-
+    static getCardAbove(cardAbove){
+        return 0
     }
 }
 
 class cardSizing {
     static calculateCardWidth (cardID){
-
-        return this.getWidestItemWidth(cardID)
-
+        const widestItem = this.getWidestItemWidth(cardID)
+        return widestItem + selector.padding * 3
     }
 
     static getWidestItemWidth(cardID){
@@ -142,6 +148,8 @@ class cardFactory {
             .append('div')
             .attr('id', card.id + 'Div')
             .style('position', 'absolute')
+            .style('border-radius', '10px')
+            .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
     }
 
     #addSvg(card){
@@ -161,9 +169,9 @@ class cardControl {
 
     async load(card){
         card.items = this.handler.getCardData(card.title)
-        await this.contentDynamics.renderItems(card)
+        this.contentDynamics.renderItems(card)
         this.dynamics.expand(card)
-        cardPositioning.getCardXY(card.title)
+        this.dynamics.move(card, cardPositioning.calculateStartingPosition(card))
         return this.dynamics.emerge(card)
     }
 
@@ -173,10 +181,9 @@ class cardDynamics {
 
     emerge(card){
         return card.div.transition()
-            .duration(500)
+            .duration(300)
             .ease(d3.easeCubicIn)
                 .style('background-color', 'white')
-                .style('border-radius', '10px')
                 .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
             .end()
     }
@@ -196,7 +203,8 @@ class cardDynamics {
     }
 
     move(card, coordinates){
-        
+        card.div.style('top', coordinates.top + 'px')
+            .style('left', coordinates.left + 'px')
     }
 
 
@@ -206,7 +214,6 @@ class cardDynamics {
 
 class cardContentDynamics {
     async renderItems(card){
-        console.log('render start')
         const fn = {
             positioning: new selectorItemPositioning (card.items),
             styling: new selectorItemStyling (card.items),
@@ -230,7 +237,7 @@ class cardContentDynamics {
                 exit => this.exitItems(exit, fn)
             )
         
-        return Promise.all(transitions.map(t => t.end()))
+        //return Promise.all(transitions.map(t => t.end()))
 
     }
 
@@ -249,11 +256,10 @@ class cardContentDynamics {
             .style('fill', 'white')
             .attr('dx', 0)
             .attr('dy', selectorItem.fontSize)
-            //.attr('text-anchor', d => fn.styling.getTextAnchor(d, fn))
             
         return text.transition('textAppearing')
-            .duration(0)
-            .delay((d, i) => i * 0)
+            .duration(350)
+            .ease(d3.easeCircleIn) 
             .style('fill', d => fn.styling.getTextColour(d))
 
     }
@@ -274,10 +280,6 @@ class cardContentDynamics {
     exitItems(selection, fn){
         return selection.remove()
     }
-
-
-
-
 }
 
 class dataHandler{
@@ -355,6 +357,7 @@ function resizeSelector(selectorLabel){
 }
 
 function onItemHover(event, d){
+    console.log(d)
     selectionManager.itemHighlightChange(d, event.type)
 }
 
@@ -694,15 +697,10 @@ class selectionManager {
     }
 
     static async itemSelectionChange(d){
-        //const elem = d3.select('#' + d.id)
-        const selectorLabel = d.parentLabel //elem.attr('class')
-        //console.log(selectorLabel)
-        const items = this.getDisplayItems(d.parentLabel)
-        
-
+        const items = cardHolder.cards[d.cardID].items
         this.updateItemSelection(d, items)
 
-       switch(d.parentLabel){
+       switch(d.cardID){
             case 'enterprise':
             case 'activity':
                 this.renderSelectorSelectionChange(d.parentLabel, items)
@@ -1075,6 +1073,12 @@ class selector {
 
 class enterpriseData {  
     static getItems(){
+        const items = this.createItems()
+        items.forEach(item => {item.cardID = 'enterprise'})
+        return items
+    }
+
+    static createItems () {
         return [
             new selectorLabel ('enterprise'),
             new selectorItem ('side hustle'),
@@ -1091,6 +1095,12 @@ class enterpriseData {
 
 class activityData {
     static getItems (){
+        const items = this.createItems()
+        items.forEach(item => {item.cardID = 'activity'})
+        return items
+    }
+
+    static createItems(){
         return [
             new selectorLabel ('activity'),
             new selectorItem ('paying employees'),
