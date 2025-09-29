@@ -41,11 +41,13 @@ class displayOrchestration {
     static #factory = {}
     static #cardControl = {}
     static #selectionManager = {}
+    static #subscriptionManager = {}
     
     static setup(){
         this.#factory = new cardFactory
         this.#cardControl = new cardControl
         this.#selectionManager = new selectionManager
+        this.#subscriptionManager = new subscriptionManager
     }
 
     static createDisplay(displayType, displayTitle){
@@ -54,6 +56,7 @@ class displayOrchestration {
                 displays.addCard(this.#factory.createCard(displayType, displayTitle))
         }
     }
+
 
     static loadCard(cardID){
         const card = displays.cards[cardID]
@@ -64,24 +67,29 @@ class displayOrchestration {
         const clickedCard = displays.cards[clickedItem.cardID]
         this.#selectionManager.updateItemSelection(clickedItem.id, clickedCard.items)
         this.#cardControl.renderSelectionChange(clickedCard)
-        const dependents = this.getDependentDisplays(clickedCard.id)
-        dependents.forEach(display => {
-            this.#selectionManager.updateSelectableStatus(display)
-            this.#cardControl.renderSelectionChange(display)
-
-        })
     }
 
-    static getDependentDisplays(displayID){
-        switch(displayID){
-            case 'enterprise':
-                return [displays.cards['activity']]
+}
 
+class subscriptionManager {
+
+
+
+    subscribers = {}
+    subscribe(selectionEvent, callback){
+        if (!this.subscribers[selectionEvent]) {
+            this.subscribers[selectionEvent] = [];
+        }
+        this.subscribers[selectionEvent].push(callback);
+    }
+
+    publish(selectionEvent, data){
+        if (this.subscribers[selectionEvent]) {
+            this.subscribers[selectionEvent].forEach(callback => {
+                callback(data);
+            });
         }
     }
-
-
-
 }
 
 class listBoxCard {
@@ -122,15 +130,15 @@ class cardPositioning {
         if(cardToLeft !== null){
             const left = parseInt(this.getCardLeftValue(cardToLeft.id))
             const width = parseInt(cardSizing.calculateCardWidth(cardToLeft.id))
-            return left + width + selector.padding
+            return left + width + cardSizing.padding
         } else {
-            return selector.padding
+            return cardSizing.padding
         }
 
     }
 
     static calculateY(cardAbove){
-            return selector.padding
+            return cardSizing.padding
     }
 
     static getCardLeftValue(cardID){
@@ -153,9 +161,11 @@ class cardPositioning {
 }
 
 class cardSizing {
+    static padding = 15
+    
     static calculateCardWidth (cardID){
         const widestItem = this.getWidestItemWidth(cardID)
-        return widestItem + selector.padding * 3
+        return widestItem + cardSizing.padding * 3
     }
 
     static getWidestItemWidth(cardID){
@@ -239,9 +249,6 @@ class cardControl {
         this.contentDynamics.renderItems(card)
     }
 
-
-
-
 }
 
 class cardDynamics {
@@ -257,8 +264,8 @@ class cardDynamics {
 
     expand(card){
         const calculateHeight = (itemCount) => {
-            const itemHeight = Math.round(selectorItem.fontSize * 1.618)
-            return itemCount * itemHeight + selector.padding
+            const itemHeight = Math.round(cardItem.fontSize * 1.618)
+            return itemCount * itemHeight + cardSizing.padding
         }
 
         const width = cardSizing.calculateCardWidth(card.id)
@@ -277,8 +284,8 @@ class cardDynamics {
 
     contract(card){
         const calculateHeight = (itemCount) => {
-            const itemHeight = Math.round(selectorItem.fontSize * 1.618)
-            return itemCount * itemHeight + selector.padding
+            const itemHeight = Math.round(cardItem.fontSize * 1.618)
+            return itemCount * itemHeight + cardSizing.padding
         }
 
         const divHeight = calculateHeight(card.maxVisibleItems)
@@ -297,8 +304,8 @@ class cardDynamics {
 class cardContentDynamics {
     async renderItems(card){
         const fn = {
-            positioning: new selectorItemPositioning (card.items),
-            styling: new selectorItemStyling (card.items),
+            positioning: new cardItemPositioning (card.items),
+            styling: new cardItemStyling (card.items),
         }
 
         const transitions = []
@@ -327,7 +334,7 @@ class cardContentDynamics {
 
         const groups = selection.append('g')
             .attr('id', d => d.id)
-            .attr('class', fn.selectorLabel)
+            .attr('class', fn.cardLabel)
             .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
             .on('mouseover', (event, d) => onItemHover(event, d))
             .on('mouseout', (event, d) => onItemOff(event, d))
@@ -337,7 +344,7 @@ class cardContentDynamics {
             .text(d => d.label)
             .style('fill', 'white')
             .attr('dx', 0)
-            .attr('dy', selectorItem.fontSize)
+            .attr('dy', cardItem.fontSize)
             
         return text.transition('textAppearing')
             .duration(350)
@@ -373,26 +380,6 @@ class dataHandler{
                 return activityData.getItems()
         }
     }
-
-    getSelectableItems(cardID){
-        switch(cardID){
-            case 'enterprise':
-                return enterpriseData.getItems()
-            case 'activity':
-                return activityData.getSelectableItems()
-            case 'obligation':
-                return obligationData.getSelectableItems()
-        }
-    }
-
-
-
-}
-
-async function loadSelectors(){
-    await loadSelector('enterprise')
-    await loadSelector('activity')
-    return Promise.resolve()
 }
 
 async function loadObligations(){
@@ -432,23 +419,10 @@ function unloadConnectors(){
     
 }
 
-async function loadSelector(selectorLabel){
-    moveSelector(selectorLabel)
-    await selectorControl.load(selectorLabel)
-    selectorControl.resize(selectorLabel)
-}
-
 async function loadConnector(connectorLabel){
     //moveSelector(connectorLabel)
     await connectorControl.load(connectorLabel)
     connectorControl.resize(connectorLabel)
-}
-
-function moveSelector(selectorLabel){
-    selectorControl.move(selectorLabel)
-}
-function resizeSelector(selectorLabel){
-    selectorControl.resize(selectorLabel)
 }
 
 function onItemHover(event, d){
@@ -463,194 +437,8 @@ function onItemClick(event, d){
     displayOrchestration.updateFromItemClick(d)
 }
 
-class selectorControl {
 
-    static async load(selectorLabel){
-        selectionManager.updateSelectableStatus(selectorLabel)
-        return this.renderItems(selectorLabel)
-    }
-
-    static move(selectorLabel, duration = 0){
-        const left = this.getStartingLeft(selectorLabel)
-        const top = this.getStartingTop(selectorLabel)
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        div.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(duration)
-            .style('left', left + 'px')
-            .style('top', top + 'px')
-    }
-
-    static getStartingLeft(selectorLabel){
-        let boundary = null
-        const selectorToLeft = this.getSelectorToLeft(selectorLabel)
-        try { boundary = this.getRightBoundary(selectorToLeft)}
-        catch { boundary = 0}
-        finally { return boundary + 15}
-    }
-
-    static getSelectorToLeft(selectorLabel){
-        switch(selectorLabel){
-            case 'activity':
-            case 'obligation':
-                return 'enterprise'
-        }
-    }
-
-    static getRightBoundary(selectorLabel){
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        const left = this.pxStringToInteger(div.style('left'))
-        const width = this.pxStringToInteger(div.style('width'))
-        return left + width
-    }
- 
-
-    static pxStringToInteger(pxString){
-        return parseInt(pxString.slice(0, pxString.indexOf('px')))
-    }
-
-    static getStartingTop(selectorLabel){
-        let boundary = null
-        const selectorAbove = this.getSelectorAbove(selectorLabel)
-        try { boundary = this.getBottomBoundary(selectorAbove)}
-        catch { boundary = 0}
-        finally {return boundary + 15}
-    }
-
-    static getSelectorAbove(selectorLabel){
-        switch(selectorLabel){
-            case 'obligation':
-                return 'activity'
-        }
-    }
-
-    static getBottomBoundary(selectorLabel){
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        const top = this.pxStringToInteger(div.style('top'))
-        const height = this.pxStringToInteger(div.style('height'))
-        return top + height  
-    }
-
-    static contract(selectorLabel){
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        const height = Math.round(selectorItem.fontSize * gRatio) * 2 + selector.padding * 2
-        div.transition().duration(300).style('height', height + 'px')
-    }
-
-    static expand(selectorLabel){
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        const itemCount = selectors[selectorLabel].getItemCount()
-        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount + selector.padding * 2
-        div.transition().duration(300).style('height', height + 'px')
-    }
-
-
-    static resize(selectorLabel, duration = 500){
-        const div = d3.select('div#' + selectorLabel + 'SelectorDiv')
-        const svg = d3.select('svg#'+ selectorLabel + 'SelectorSvg')
-        const itemCount = selectors[selectorLabel].getItemCount()
-        const width = this.getWidestItemWidth(svg) + selector.padding * 3
-        const height = Math.round(selectorItem.fontSize * gRatio) * itemCount + selector.padding * 2
-        div.style('height', height + 'px').style('width', width + 'px')
-        svg.attr('width', width).attr('height', height)
-    }
-
-    static getWidestItemWidth(svg){
-        const gItems = svg.selectAll('g')
-        let widestWidth = 0
-        gItems.each((d, i) => {
-            const elemWidth = this.getElemWidth(d.id)
-            if(elemWidth > widestWidth){
-                widestWidth = elemWidth
-            }
-        })
-
-        return widestWidth
-    }
-
-    static getElemWidth(id){
-        const elem = d3.select('#' + id)
-        return parseInt(Math.ceil(elem.node().getBBox().width))
-    }
-
-    static async renderItems(selectorLabel){
-        const svg = d3.select('#' + selectorLabel + 'SelectorSvg')
-        const data = selectionManager.getItems(selectorLabel)
-        const fn = {
-            positioning: new selectorItemPositioning (data),
-            styling: new selectorItemStyling (data),
-            selectorLabel: selectorLabel
-        }
-
-        let enterTransition = null;
-        let updateTransition = null;
-
-        svg.selectAll('g.' + selectorLabel)
-            .data(data, d => d.id)
-            .join(
-                enter => {
-                    const t = this.enterItems(enter, fn)
-                    enterTransition = t
-                    return t
-                },
-                update => {
-                    const t = this.updateItems(update, fn)
-                    updateTransition = t
-                    return t
-                },
-                exit => this.exitItems(exit, fn)
-            )
-
-        return enterTransition.end()
-
-    }
-
-    static enterItems(selection, fn){
-
-        const groups = selection.append('g')
-            .attr('id', d => d.id)
-            .attr('class', fn.selectorLabel)
-            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-            .on('mouseover', (event, d) => onItemHover(event, d))
-            .on('mouseout', (event, d) => onItemOff(event, d))
-            .on('click', (event, d) => onItemClick(event, d))
-
-        const text = groups.append('text')
-            .text(d => d.label)
-            .style('fill', 'white')
-            .attr('dx', 0)
-            .attr('dy', selectorItem.fontSize)
-            //.attr('text-anchor', d => fn.styling.getTextAnchor(d, fn))
-            
-        return text.transition('textAppearing')
-            .duration(0)
-            .delay((d, i) => i * 0)
-            .style('fill', d => fn.styling.getTextColour(d))
-
-    }
-
-    static updateItems(selection, fn){
-        const groups = selection.transition('itemOrder')
-            .duration(350)
-            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-
-        groups.select('text')
-            .style('font-weight', d => fn.styling.getFontWeight(d))
-            .style('fill', d => fn.styling.getTextColour(d))
-            
-
-        return groups
-    }
-
-    static exitItems(selection, fn){
-        return selection.remove()
-    }
-
-}
-
-
-
-class selectorItemStyling {
+class cardItemStyling {
     constructor(items){
         this.items = items
     }
@@ -658,7 +446,7 @@ class selectorItemStyling {
     getTextColour(d, i){
         const selectedItemIndex = this.getSelectedItemIndex()
 
-        if(d.constructor.name === 'selectorLabel'){
+        if(d.constructor.name === 'cardLabel'){
             return '#336BF0'
         }  else if (selectedItemIndex > 0){
             return d.selected ? '#131C3E' : 'white'
@@ -674,7 +462,7 @@ class selectorItemStyling {
     }
 
     getTextAnchor(d, fn){
-        return fn.selectorLabel === 'obligation' ? 'end' : 'start'
+        return fn.cardLabel === 'obligation' ? 'end' : 'start'
     }
 
     getSelectedItemIndex(){
@@ -684,7 +472,7 @@ class selectorItemStyling {
 }
 
 
-class selectorItemPositioning {
+class cardItemPositioning {
 
     constructor(items){
         this.items = items
@@ -700,20 +488,20 @@ class selectorItemPositioning {
         const selectedIndex = this.getSelectedItemIndex()
 
         if(selectedIndex === -1){
-            return selector.padding
+            return cardSizing.padding
         } else {
-            return !d.selected && d.constructor.name !== 'selectorLabel' ? - 300 : selector.padding
+            return !d.selected && d.constructor.name !== 'cardLabel' ? - 300 : cardSizing.padding
         }
     }
     
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
-        return listPos * Math.round(selectorItem.fontSize * 1.618) + selector.padding
+        return listPos * Math.round(cardItem.fontSize * 1.618) + cardSizing.padding
     }
 
     getListPosition(d, i){
         
-        if (d.constructor.name === 'selectorLabel'){
+        if (d.constructor.name === 'cardLabel'){
             return i
         } else if (d.selected){
             return 1
@@ -729,15 +517,7 @@ class selectorItemPositioning {
 }
 
 class selectionManager {
-
-    getSelectionState(){
-        const cardArray = Object.values(displays.cards)
-        let selectionsArray = {}
-        cardArray.forEach(card => {
-            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
-        })
-        return selectionsArray
-    }
+    subscribers = {}
 
     getSelectedItemLabel(items){
         const selectedItem = this.getSelectedItem(items)
@@ -750,17 +530,36 @@ class selectionManager {
     }
 
     updateItemSelection(itemID, itemsOnCard){
-        const selectable = (item)=> item.constructor.name === 'selectorItem'
+        const selectable = (item)=> item.constructor.name === 'cardItem'
         const idMatch = (item)=> item.id === itemID
         itemsOnCard.forEach(item => {
             item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
         })
+        this.updateSelectableStatus()
     }
 
-    updateSelectableStatus(card){
-        const items = card.items
-        const selectionState = this.getSelectionState()
-        console.log(selectionState)
+    updateSelectableStatus(){
+   
+        
+        const cardArray = Object.values(displays.cards)
+        
+        
+        
+        cardArray.forEach(card => {
+            //get dependecies
+            
+            //check depending ons
+            //selected item already move on
+            //
+
+
+
+            console.log(this.getSelectedItemLabel(card.items))
+        })
+        
+        //const items = card.items
+        //const selectionState = this.getSelectionState()
+        //console.log(selectionState)
         
         
         //const selectableItemLabels = this.getSelectableItems(card.id)
@@ -774,6 +573,26 @@ class selectionManager {
         }) */
     }
 
+    
+    getSelectionState(){
+        const cardArray = Object.values(displays.cards)
+        let selectionsArray = {}
+        cardArray.forEach(card => {
+            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
+        })
+        return selectionsArray
+    }
+
+
+
+
+    getDependentItems(item, card){
+        switch(card){
+            case 'enterprise':
+                return activityData.getSelectableItems()
+
+        }
+    }
     
 
     static selectorArray = ()=>{
@@ -792,9 +611,9 @@ class selectionManager {
         let selections = []
         for(let i = 0; i < selectors.length; i++){
             try{
-                const selectorLabel = selectors[i].getLabel()
+                const cardLabel = selectors[i].getLabel()
                 const selectedItemLabel = selectors[i].getSelectedItemLabel()
-                selections[selectorLabel] = selectedItemLabel
+                selections[cardLabel] = selectedItemLabel
             } catch {
                 continue;
             }
@@ -803,8 +622,8 @@ class selectionManager {
         return selections
     }
 
-    static getAllItems(selectorLabel){
-        switch(selectorLabel){
+    static getAllItems(cardLabel){
+        switch(cardLabel){
             case 'enterprise':
                 return enterpriseData.getItems()
             case 'activity':
@@ -816,7 +635,7 @@ class selectionManager {
 
 
     static itemHighlightChange(d, eventType){
-        const selectable = (item)=> item.constructor.name === 'selectorItem' && item.selectable
+        const selectable = (item)=> item.constructor.name === 'cardItem' && item.selectable
         const selected = (item) => item.selected
 
         if(!selected(d) && selectable(d)){
@@ -854,8 +673,8 @@ class selectionManager {
         }
     }
 
-    static getItems(selectorLabel){
-        return selectors[selectorLabel].items
+    static getItems(cardLabel){
+        return selectors[cardLabel].items
     }
   
 
@@ -866,9 +685,9 @@ class selectionManager {
             control.expand(card)
         }
 
-        selectorControl.renderItems(selectorLabel)
+        selectorControl.renderItems(cardLabel)
 
-        if(selectorLabel === 'enterprise'){
+        if(cardLabel === 'enterprise'){
             this.updateSelectableStatus('activity')
             selectorControl.renderItems('activity')
         }
@@ -910,22 +729,7 @@ class selectionManager {
         remainingItems.map(obj => ({...obj, selected: false}))
     }
 
-    static subscribers = {}
-    static subscribe(selectionEvent, callback){
-        if (!this.subscribers[selectionEvent]) {
-            this.subscribers[selectionEvent] = [];
-        }
-        this.subscribers[selectionEvent].push(callback);
     
-    }
-
-    static publish(selectionEvent, data){
-        if (this.subscribers[selectionEvent]) {
-            this.subscribers[selectionEvent].forEach(callback => {
-                callback(data);
-            });
-        }
-    }
 }
 
 class connector {
@@ -950,7 +754,7 @@ class connector {
     createContainer(){
         const left = 1000
         const top = this.posNum * 60 + 100
-        const height = Math.round(selectorItem.fontSize * gRatio) * 2 + selector.padding * 2
+        const height = Math.round(cardItem.fontSize * gRatio) * 2 + cardSizing.padding * 2
         
         this.div = d3.select('body')
             .append('div')
@@ -970,8 +774,8 @@ class connector {
 
     createItems(){
         this.items = [
-            new selectorLabel(this.label),
-            new selectorItem(this.itemLabel, true)
+            new cardLabel(this.label),
+            new cardItem(this.itemLabel, true)
         ]
 
         this.items.forEach(item => item.parentLabel = this.label)
@@ -985,8 +789,8 @@ class connectorControl {
         const svg = d3.select('#' + id + 'Svg')
         
         const data = [
-            new selectorLabel(label),
-            new selectorItem(itemLabel, true)
+            new cardLabel(label),
+            new cardItem(itemLabel, true)
         ]
 
         data.forEach(item => item.parentLabel = type)
@@ -1034,7 +838,7 @@ class connectorControl {
             .text(d => d.label)
             .style('fill', styles.pageColour)
             .attr('dx', 0)
-            .attr('dy', selectorItem.fontSize)
+            .attr('dy', cardItem.fontSize)
             
         return text.transition('textAppearing')
             .duration(1000)
@@ -1089,7 +893,7 @@ class connectorControl {
 
 class connectorItemStyling {
     getTextColour(d, i){
-        if(d.constructor.name === 'selectorLabel'){
+        if(d.constructor.name === 'cardLabel'){
             return '#336BF0'
         }  else {
             return '#131C3E'
@@ -1105,74 +909,9 @@ class connectorItemStyling {
 class connectorItemPositioning {
 
     getTranslate(d, i){
-        const x = selector.padding
-        const y = i * Math.round(selectorItem.fontSize * 1.618) + selector.padding
+        const x = cardSizing.padding
+        const y = i * Math.round(cardItem.fontSize * 1.618) + cardSizing.padding
         return d3Helper.getTranslateString(x, y)
-    }
-
-}
-
-
-class selector {
-
-    items = []
-    static padding = 15
-
-    constructor(label){
-        this.label = label
-        this.id = label + 'Selector'
-        this.setup()
-    }
-
-    setup(){
-        this.createContainer()
-        this.createCanvas()
-        this.createItems()
-    }
-
-    createContainer(){
-        this.div = d3.select('body')
-            .append('div').attr('id', this.id + 'Div')
-            .style('position', 'absolute')
-            .style('height', '1000px')
-            .style('background-color', 'white')
-            .style('border-radius', '10px')
-            .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
-
-    }
-
-    createCanvas(){
-        this.svg = this.div.append('svg')
-            .attr('id', this.id + 'Svg')
-    }
-
-    createItems(){
-        this.items = selectionManager.getAllItems(this.label)
-        this.items.forEach(item => item.parentLabel = this.label)
-    }
-
-    unloadItems(){
-        this.items = []
-    }
-
-    getItemCount(){
-        return this.items.length
-    }
-
-    getItem(id){
-        return this.items.find(item => item.id === id)
-    }
-
-    getSelectedItemIndex(){
-        return this.items.findIndex(item => item.selected === true)
-    }
-
-    
-
-    
-
-    getLabel(){
-        return this.label
     }
 
 }
@@ -1186,10 +925,10 @@ class enterpriseData {
 
     static createItems () {
         return [
-            new selectorLabel ('enterprise'),
-            new selectorItem ('side hustle'),
-            new selectorItem ('construction company'),
-            new selectorItem ('freelance profressional')
+            new cardLabel ('enterprise'),
+            new cardItem ('side hustle'),
+            new cardItem ('construction company'),
+            new cardItem ('freelance profressional')
         ]
     }
 
@@ -1208,16 +947,16 @@ class activityData {
 
     static createItems(){
         return [
-            new selectorLabel ('activity'),
-            new selectorItem ('paying employees'),
-            new selectorItem ('selling to enterprise'),
-            new selectorItem ('selling to a customer'),
-            new selectorItem ('starting the business'),
-            new selectorItem ('setting up fin mgmt systems')
+            new cardLabel ('activity'),
+            new cardItem ('paying employees'),
+            new cardItem ('selling to enterprise'),
+            new cardItem ('selling to a customer'),
+            new cardItem ('starting the business'),
+            new cardItem ('setting up fin mgmt systems')
         ]
     }
 
-    static getSelectableItems(selectionState){
+    static getSelectableItems(selectedEnterprise){
         let labels = []
 
         switch(selectionState['enterprise']){
@@ -1239,20 +978,20 @@ class obligationData {
 
     static getItems (){
         return [
-            new selectorLabel ('obligation'),
-            new selectorItem ('register for income tax'),
-            new selectorItem ('record keep for income tax'),
-            new selectorItem ('calculate income tax'),
-            new selectorItem ('report income tax'),
-            new selectorItem ('pay income tax'),
-            new selectorItem ('calculate vat'),
-            new selectorItem ('collect vat'),
-            new selectorItem ('report vat'),
-            new selectorItem ('pay vat'),
-            new selectorItem ('calculate payroll tax'),
-            new selectorItem ('collect payroll tax'),
-            new selectorItem ('report payroll tax'),
-            new selectorItem ('pay payroll tax'),
+            new cardLabel ('obligation'),
+            new cardItem ('register for income tax'),
+            new cardItem ('record keep for income tax'),
+            new cardItem ('calculate income tax'),
+            new cardItem ('report income tax'),
+            new cardItem ('pay income tax'),
+            new cardItem ('calculate vat'),
+            new cardItem ('collect vat'),
+            new cardItem ('report vat'),
+            new cardItem ('pay vat'),
+            new cardItem ('calculate payroll tax'),
+            new cardItem ('collect payroll tax'),
+            new cardItem ('report payroll tax'),
+            new cardItem ('pay payroll tax'),
         ]
     }
 
@@ -1330,9 +1069,9 @@ class mechanismData {
 
     static getItems (){
         return [
-            new selectorLabel ('mechanism'),
-            new selectorItem ('entreprenuers bank account'),
-            new selectorItem ('government business registry'),
+            new cardLabel ('mechanism'),
+            new cardItem ('entreprenuers bank account'),
+            new cardItem ('government business registry'),
         ]
     }
 
@@ -1356,7 +1095,7 @@ class mechanismData {
 }
 
 
-class selectorItem {
+class cardItem {
 
     static fontSize = 12
 
@@ -1367,15 +1106,15 @@ class selectorItem {
     }
 
     setID(){
-        this.id = this.constructor.name === 'selectorLabel' ? 'label' : this.label.replaceAll(' ','')
+        this.id = this.constructor.name === 'cardLabel' ? 'label' : this.label.replaceAll(' ','')
     }
 
-    setParentSelector(selectorLabel){
-        this.parentSelector = selectorLabel
+    setParentSelector(cardLabel){
+        this.parentSelector = cardLabel
     }
 }
 
-class selectorLabel extends selectorItem {
+class cardLabel extends cardItem {
     constructor(label){
         super(label, false)
     }
