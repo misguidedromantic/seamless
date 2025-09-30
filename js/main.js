@@ -55,10 +55,18 @@ class displayOrchestration {
         }
     }
 
-
     static loadCard(cardID){
         const card = displays.cards[cardID]
         return this.#cardControl.load(card)
+    }
+
+    static updateFromItemHover(item, eventType){
+        const selectable = (item)=> item.constructor.name === 'cardItem' && item.selectable
+        const selected = (item) => item.selected
+
+        if(!selected(item) && selectable(item)){
+            this.#cardControl.renderItemHighlightChange(item.id, eventType)
+        }
     }
 
     static updateFromItemClick(clickedItem){
@@ -78,30 +86,8 @@ class displayOrchestration {
                 this.#cardControl.renderSelectabilityChange(card, selectableItemLabels)
             }
         }
-
     }
 
-}
-
-class subscriptionManager {
-
-
-
-    subscribers = {}
-    subscribe(selectionEvent, callback){
-        if (!this.subscribers[selectionEvent]) {
-            this.subscribers[selectionEvent] = [];
-        }
-        this.subscribers[selectionEvent].push(callback);
-    }
-
-    publish(selectionEvent, data){
-        if (this.subscribers[selectionEvent]) {
-            this.subscribers[selectionEvent].forEach(callback => {
-                callback(data);
-            });
-        }
-    }
 }
 
 class listBoxCard {
@@ -141,7 +127,7 @@ class cardPositioning {
     static calculateX(cardToLeft){
         if(cardToLeft !== null){
             const left = parseInt(this.getCardLeftValue(cardToLeft.id))
-            const width = parseInt(cardSizing.calculateCardWidth(cardToLeft.id))
+            const width = parseInt(cardSizing.getWidth(cardToLeft.id))
             return left + width + cardSizing.padding
         } else {
             return cardSizing.padding
@@ -174,6 +160,11 @@ class cardPositioning {
 
 class cardSizing {
     static padding = 15
+    
+    static getWidth(cardID){
+        const stringWidth = d3.select('#' + cardID + 'Svg').style('width')
+        return stringWidth.slice(0, stringWidth.indexOf('px'))
+    }
     
     static calculateCardWidth (cardID){
         const widestItem = this.getWidestItemWidth(cardID)
@@ -251,6 +242,12 @@ class cardControl {
         return this.dynamics.emerge(card)
     }
 
+    renderItemHighlightChange(itemID, eventType){
+        const elem = d3.select('#' + itemID)
+        const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
+        elem.select('text').style('font-weight', fontWeight)
+    }
+
     renderSelectionChange(card){
         if(card.items.some(item => item.selected)){
             this.dynamics.contract(card)
@@ -279,6 +276,8 @@ class cardControl {
 class cardDynamics {
 
     emerge(card){
+        this.setWidth(card)
+        
         return card.div.transition()
             .duration(300)
             .ease(d3.easeCubicIn)
@@ -287,13 +286,17 @@ class cardDynamics {
             .end()
     }
 
+    setWidth(card){
+        const width = cardSizing.calculateCardWidth(card.id)
+        card.div.style('width', width + 'px')
+        card.svg.style('width', width)
+    }
+
     expand(card){
         const calculateHeight = (itemCount) => {
             const itemHeight = Math.round(cardItem.fontSize * 1.618)
             return itemCount * itemHeight + cardSizing.padding * 2
         }
-
-        const width = cardSizing.calculateCardWidth(card.id)
 
         const divHeight = calculateHeight(card.maxVisibleItems)
         const svgHeight = calculateHeight(card.items.count)
@@ -301,9 +304,8 @@ class cardDynamics {
         card.div.transition()
             .duration(400)
                 .style('height', divHeight + 'px')
-                .style('width', width + 'px')
 
-        card.svg.style('height', svgHeight).style('width', width)
+        card.svg.style('height', svgHeight)
     }
 
     move(card, coordinates){
@@ -317,7 +319,6 @@ class cardDynamics {
             return itemCount * itemHeight + cardSizing.padding * 2
         }
 
-        const width = cardSizing.calculateCardWidth(card.id)
 
         const divHeight = calculateHeight(2)
         const svgHeight = calculateHeight(card.items.count)
@@ -325,10 +326,7 @@ class cardDynamics {
         card.div.transition()
             .duration(400)
                 .style('height', divHeight + 'px')
-                .style('width', width + 'px')
-        
-        
-        
+
         card.svg.style('height', svgHeight)
 
     }
@@ -463,11 +461,13 @@ async function loadConnector(connectorLabel){
 }
 
 function onItemHover(event, d){
-    selectionManager.itemHighlightChange(d, event.type)
+    //selectionManager.itemHighlightChange(d, event.type)
+    displayOrchestration.updateFromItemHover(d, event.type)
 }
 
 function onItemOff(event, d){
-    selectionManager.itemHighlightChange(d, event.type)
+    //selectionManager.itemHighlightChange(d, event.type)
+    displayOrchestration.updateFromItemHover(d, event.type)
 }
 
 function onItemClick(event, d){
@@ -554,7 +554,6 @@ class cardItemPositioning {
 }
 
 class selectionManager {
-    subscribers = {}
 
     getSelectedItemLabel(items){
         const selectedItem = this.getSelectedItem(items)
@@ -587,8 +586,6 @@ class selectionManager {
     }
 
     
-
-    
     getSelectionState(){
         const cardArray = Object.values(displays.cards)
         let selectionsArray = {}
@@ -609,45 +606,6 @@ class selectionManager {
         }
     }
     
-
-    static selectorArray = ()=>{
-        return [
-            selectors.enterprise,
-            selectors.activity,
-            selectors.obligation
-        ]
-    }
-
- 
-
-    static getCurrentState(){
-
-        const selectors = this.selectorArray()
-        let selections = []
-        for(let i = 0; i < selectors.length; i++){
-            try{
-                const cardLabel = selectors[i].getLabel()
-                const selectedItemLabel = selectors[i].getSelectedItemLabel()
-                selections[cardLabel] = selectedItemLabel
-            } catch {
-                continue;
-            }
-        }
-
-        return selections
-    }
-
-    static getAllItems(cardLabel){
-        switch(cardLabel){
-            case 'enterprise':
-                return enterpriseData.getItems()
-            case 'activity':
-                return activityData.getItems()
-            case 'obligation':
-                return obligationData.getItems()
-        }
-    }
-
 
     static itemHighlightChange(d, eventType){
         const selectable = (item)=> item.constructor.name === 'cardItem' && item.selectable
