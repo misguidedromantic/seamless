@@ -41,13 +41,11 @@ class displayOrchestration {
     static #factory = {}
     static #cardControl = {}
     static #selectionManager = {}
-    static #subscriptionManager = {}
     
     static setup(){
         this.#factory = new cardFactory
         this.#cardControl = new cardControl
         this.#selectionManager = new selectionManager
-        this.#subscriptionManager = new subscriptionManager
     }
 
     static createDisplay(displayType, displayTitle){
@@ -67,6 +65,20 @@ class displayOrchestration {
         const clickedCard = displays.cards[clickedItem.cardID]
         this.#selectionManager.updateItemSelection(clickedItem.id, clickedCard.items)
         this.#cardControl.renderSelectionChange(clickedCard)
+        this.updateSelectableState()
+    }
+
+    static updateSelectableState(){
+        const cardArray = Object.values(displays.cards)
+
+        for(let i = 0; i < cardArray.length; i++){
+            const card = cardArray[i]
+            const selectableItemLabels = this.#selectionManager.getSelectableItems(card)
+            if(selectableItemLabels !== null){
+                this.#cardControl.renderSelectabilityChange(card, selectableItemLabels)
+            }
+        }
+
     }
 
 }
@@ -93,7 +105,7 @@ class subscriptionManager {
 }
 
 class listBoxCard {
-    maxVisibleItems = 7
+    maxVisibleItems = 6
     left = 0
     top = 0
     constructor(title){
@@ -249,6 +261,19 @@ class cardControl {
         this.contentDynamics.renderItems(card)
     }
 
+    renderSelectabilityChange(card, selectableItemLabels){
+
+        card.items.forEach(item => {
+            if(selectableItemLabels.includes(item.label)){
+                item.selectable = true
+            } else {
+                item.selectable = false
+            }
+        })
+
+        this.contentDynamics.renderItems(card)
+    }
+
 }
 
 class cardDynamics {
@@ -265,7 +290,7 @@ class cardDynamics {
     expand(card){
         const calculateHeight = (itemCount) => {
             const itemHeight = Math.round(cardItem.fontSize * 1.618)
-            return itemCount * itemHeight + cardSizing.padding
+            return itemCount * itemHeight + cardSizing.padding * 2
         }
 
         const width = cardSizing.calculateCardWidth(card.id)
@@ -273,7 +298,11 @@ class cardDynamics {
         const divHeight = calculateHeight(card.maxVisibleItems)
         const svgHeight = calculateHeight(card.items.count)
 
-        card.div.style('height', divHeight + 'px').style('width', width + 'px')
+        card.div.transition()
+            .duration(400)
+                .style('height', divHeight + 'px')
+                .style('width', width + 'px')
+
         card.svg.style('height', svgHeight).style('width', width)
     }
 
@@ -285,13 +314,21 @@ class cardDynamics {
     contract(card){
         const calculateHeight = (itemCount) => {
             const itemHeight = Math.round(cardItem.fontSize * 1.618)
-            return itemCount * itemHeight + cardSizing.padding
+            return itemCount * itemHeight + cardSizing.padding * 2
         }
 
-        const divHeight = calculateHeight(card.maxVisibleItems)
+        const width = cardSizing.calculateCardWidth(card.id)
+
+        const divHeight = calculateHeight(2)
         const svgHeight = calculateHeight(card.items.count)
 
-        card.div.style('height', divHeight + 'px')
+        card.div.transition()
+            .duration(400)
+                .style('height', divHeight + 'px')
+                .style('width', width + 'px')
+        
+        
+        
         card.svg.style('height', svgHeight)
 
     }
@@ -530,48 +567,26 @@ class selectionManager {
     }
 
     updateItemSelection(itemID, itemsOnCard){
-        const selectable = (item)=> item.constructor.name === 'cardItem'
+        const selectable = (item)=> item.selectable
         const idMatch = (item)=> item.id === itemID
         itemsOnCard.forEach(item => {
             item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
         })
-        this.updateSelectableStatus()
     }
 
-    updateSelectableStatus(){
-   
-        
-        const cardArray = Object.values(displays.cards)
-        
-        
-        
-        cardArray.forEach(card => {
-            //get dependecies
-            
-            //check depending ons
-            //selected item already move on
-            //
+    getSelectableItems(card){
 
-
-
-            console.log(this.getSelectedItemLabel(card.items))
-        })
-        
-        //const items = card.items
-        //const selectionState = this.getSelectionState()
-        //console.log(selectionState)
-        
-        
-        //const selectableItemLabels = this.getSelectableItems(card.id)
-
-/*         card.items.forEach(item => {
-            if(selectableItemLabels.includes(item.label)){
-                item.selectable = true
-            } else {
-                item.selectable = false
-            }
-        }) */
+        switch(card.id){
+            case 'activity':
+                const selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
+                return activityData.getSelectableItems(selectedEnterprise)
+                
+            case 'enterprise':
+                return null
+        }
     }
+
+    
 
     
     getSelectionState(){
@@ -688,7 +703,7 @@ class selectionManager {
         selectorControl.renderItems(cardLabel)
 
         if(cardLabel === 'enterprise'){
-            this.updateSelectableStatus('activity')
+            this.updateItemsSelectability('activity')
             selectorControl.renderItems('activity')
         }
 
@@ -959,7 +974,8 @@ class activityData {
     static getSelectableItems(selectedEnterprise){
         let labels = []
 
-        switch(selectionState['enterprise']){
+        switch(selectedEnterprise){
+            default:
             case 'construction company':
                 labels.push('paying employees')
             case 'freelance profressional':
