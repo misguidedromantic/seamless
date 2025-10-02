@@ -1,30 +1,158 @@
 const gRatio = 1.618
 
-class styles {
-    static pageColour = '#F6F7F9'
-    static divColour = 'white'
-    static divShadowUp = '5px 5px 10px rgba(0, 0, 0, 0.3)'
-    static divShadowDown = '0px 0px 0px rgba(0, 0, 0, 0.3)'
-}
-
-class selectors {
-    static enterprise = {}
-    static activity = {}
-}
-
-class connectors {
-    static obligations = []
-    static capabilities = []
-    static mechanisms = []
-}
-
-window.onload = async function(){
+window.onload = function(){
+    
     displayOrchestration.setup()
-    displayOrchestration.createDisplay('listBoxCard', 'Enterprise')
-    displayOrchestration.createDisplay('listBoxCard', 'Activity')
+    displayOrchestration.initialLoad()
+}
 
-    await displayOrchestration.loadCard('enterprise')
-    displayOrchestration.loadCard('activity')
+
+class orchestration {
+
+    static selectionChange(){
+        const cardsWithSelection = () => {
+            const cards = []
+            const cardsToCheck = Object.values(displays.cards)
+            cardsToCheck.forEach(card => {
+                if(this.getSelectedItem(card.items) !== null){
+                    cards.push(card)
+                }
+            })
+            return cards
+        }
+
+
+        const obligationsLoadable = () => {
+            const checkIDs = ['enterprise', 'activity']
+            for (let i = 0; i < checkIDs.length; i++){
+                const cardToCheck = displays.cards[checkIDs[i]]
+                if(this.getSelectedItem(cardToCheck.items) === null){
+                    return false
+                }
+            } 
+
+            return true
+        }
+
+        //renderItemSelectionChange
+        //renderItemSelectableChanges
+        //renderAvailableCardChanges
+    
+    }
+
+    static updateData(){}
+    static updateDisplays(){}
+
+    static getSelectedItem(items){
+        const selectedItem = items.find(item => item.selected)
+        if(selectedItem === undefined){
+            return null
+        }
+        return selectedItem
+    }
+
+
+}
+
+class enterprise {
+
+}
+class activity {}
+class obligation {}
+class mechanism {}
+
+class cardItem {
+
+    static fontSize = 12
+
+    constructor(label, selectable = true){
+        this.label = label
+        this.selectable = selectable
+        this.setID()
+    }
+
+    setID(){
+        this.id = this.constructor.name === 'cardLabel' ? 'label' : this.label.replaceAll(' ','')
+    }
+
+    setParentSelector(cardLabel){
+        this.parentSelector = cardLabel
+    }
+}
+
+class cardLabel extends cardItem {
+    constructor(label){
+        super(label, false)
+    }
+}
+
+class selectionManager {
+
+    getSelectedItemLabel(items){
+        const selectedItem = this.getSelectedItem(items)
+        try{return selectedItem.label}
+        catch{return undefined}
+    }
+
+    getSelectedItem(items){
+        return items.find(item => item.selected === true)
+    }
+
+    updateItemSelection(itemID, itemsOnCard){
+        const selectable = (item)=> item.selectable
+        const idMatch = (item)=> item.id === itemID
+        itemsOnCard.forEach(item => {
+            item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
+        })
+    }
+
+    getSelectableItems(cardID){
+
+        let selectedEnterprise = null
+        let selectedActivity = null
+
+        switch(cardID){
+            case 'activity':
+                selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
+                return activityData.getSelectableItems(selectedEnterprise)
+                
+            case 'enterprise':
+                return null
+
+            case 'obligations': 
+                selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
+                selectedActivity = this.getSelectedItemLabel(displays.cards['activity'].items)
+                return obligationData.getSelectableItems(selectedEnterprise, selectedActivity)
+        }
+    }
+
+    getSelectionState(){
+        const cardArray = Object.values(displays.cards)
+        let selectionsArray = {}
+        cardArray.forEach(card => {
+            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
+        })
+        return selectionsArray
+    }
+
+
+}
+
+
+
+class cardEvents {
+
+    static onItemHover(event, d){
+        displayOrchestration.mouseoverItem(d)
+    }
+    
+    static onItemOff(event, d){
+        displayOrchestration.mouseOffItem(d)
+    }
+    
+    static onItemClick(event, d){
+        displayOrchestration.itemClicked(d)
+    }
 
 }
 
@@ -48,32 +176,66 @@ class displayOrchestration {
         this.#selectionManager = new selectionManager
     }
 
-    static createDisplay(displayType, displayTitle){
-        switch(displayType){
-            case 'listBoxCard':
-                displays.addCard(this.#factory.createCard(displayType, displayTitle))
-        }
+    static initialLoad(){
+        const cardTitles = ['Enterprise','Activity']
+        const cards = this.createCards('listBoxCard', cardTitles)
+        this.loadCards(cards)
     }
 
-    static loadCard(cardID){
+    static createCards(cardType, cardTitles){
+        const created = []
+        
+        for(let i = 0; i < cardTitles.length; i++){
+            const position = cardPositioning.calculatePreEntryPosition(cardType, cardTitles[i])
+            const dimensions = cardSizing.calculateStartingDimensions()
+            const card = this.#factory.createCard(cardType, cardTitles[i], position, dimensions)
+            created.push(card)
+            displays.addCard(card)
+        }
+
+        return created
+    }
+
+    static async loadCards(cardsToLoad){
+        for(let i = 0; i < cardsToLoad.length; i++){
+            await this.#cardControl.load(cardsToLoad[i])
+        }
+
+        return Promise.resolve()
+    }
+
+    static async unloadCard(cardID){
         const card = displays.cards[cardID]
-        return this.#cardControl.load(card)
+        await this.#cardControl.unload(card)
+        card.div.remove()
+        delete displays.cards[cardID]
+        return Promise.resolve()
     }
 
-    static updateFromItemHover(item, eventType){
-        const selectable = (item)=> item.constructor.name === 'cardItem' && item.selectable
-        const selected = (item) => item.selected
+    static mouseoverItem(item){
+        const isCardItem = (item) => item.constructor.name === 'cardItem'
+        if(isCardItem(item)){this.#cardControl.mouseoverItem(item)}
+    }
 
-        if(!selected(item) && selectable(item)){
-            this.#cardControl.renderItemHighlightChange(item.id, eventType)
+    static mouseOffItem(item){
+        const isCardItem = (item) => item.constructor.name === 'cardItem'
+        if(isCardItem(item)){this.#cardControl.mouseOffItem(item)}
+    }
+
+    static async itemClicked(item){
+        const clickedCard = displays.cards[item.cardID]
+
+        if(clickedCard.constructor.name === 'listBoxCard'){
+            this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
+            await this.#cardControl.renderSelectionChange(clickedCard)
+            this.updateSelectableState()
+            await this.refresh()
+        } else if (clickedCard.constructor.name === 'optionCard'){
+            this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
         }
-    }
 
-    static updateFromItemClick(clickedItem){
-        const clickedCard = displays.cards[clickedItem.cardID]
-        this.#selectionManager.updateItemSelection(clickedItem.id, clickedCard.items)
-        this.#cardControl.renderSelectionChange(clickedCard)
-        this.updateSelectableState()
+        orchestration.selectionChange()
+
     }
 
     static updateSelectableState(){
@@ -81,13 +243,41 @@ class displayOrchestration {
 
         for(let i = 0; i < cardArray.length; i++){
             const card = cardArray[i]
-            const selectableItemLabels = this.#selectionManager.getSelectableItems(card)
-            if(selectableItemLabels !== null){
+            const selectableItemLabels = this.#selectionManager.getSelectableItems(card.id)
+            if(selectableItemLabels !== null && card.constructor.name === 'listBoxCard'){
                 this.#cardControl.renderSelectabilityChange(card, selectableItemLabels)
             }
         }
     }
 
+    static async refresh(){
+        const cardTitlesToLoad = this.#selectionManager.getSelectableItems('obligations')
+        const cardsIDsToUnload = this.getCardsToUnload(cardTitlesToLoad)
+        await this.unloadCards(cardsIDsToUnload)
+        const cards = this.createCards('optionCard', cardTitlesToLoad)
+        await this.loadCards(cards)
+        return Promise.resolve()
+    }
+
+    static getCardsToUnload(titlesToDisplay){
+        const optionCards = Object.values(displays.cards).filter(card => card.constructor.name === 'optionCard')
+        const ids = []
+
+        optionCards.forEach(card => {
+            if(!titlesToDisplay.includes(card.title)){
+                ids.push(card.id)
+            }
+        })
+
+        return ids
+    }
+
+    static async unloadCards(cardIds){
+        for(let i = 0; i < cardIds.length; i++){
+            this.unloadCard(cardIds[i])
+        }
+        return Promise.resolve()
+    }
 }
 
 class listBoxCard {
@@ -96,13 +286,15 @@ class listBoxCard {
     top = 0
     constructor(title){
         this.title = title
-        this.id = this.title.toLowerCase()
+        this.id = this.title.toLowerCase().replaceAll(' ','')
     }
+
 }
 class optionCard {
+    maxVisibleItems = 2
     constructor(title){
         this.title = title
-        this.id = this.title.toLowerCase()
+        this.id = this.title.toLowerCase().replaceAll(' ','')
     }
 }
 
@@ -116,54 +308,128 @@ class cardHolder {
 }
 
 class cardPositioning {
-    static calculateStartingPosition(card){
-        const cardToLeft= this.getCardToLeft(card)
-        return {
-            left: this.calculateX(cardToLeft),
-            top: this.calculateY(cardToLeft)
+    static calculatePreEntryPosition(cardType, cardTitle){
+        const pos = {}
+        if(cardType === 'listBoxCard'){
+            pos.left = this.calculateLeft(cardType, cardTitle)
+        } else if (cardType === 'optionCard'){
+            pos.left = -300
+        }
+        pos.top = this.calculateTop(cardType, cardTitle)
+        return pos
+
+    }
+
+    static calculateStartingPosition(cardType, cardTitle){
+        const pos = {}
+        pos.left = this.calculateLeft(cardType, cardTitle)
+        pos.top = this.calculateTop(cardType, cardTitle)
+        return pos
+    }
+
+    static calculateRemovalPosition(card){
+        const pos = {}
+        if (card.constructor.name === 'optionCard'){
+            pos.top = this.getCardTopValue(card)
+            pos.left = -300
+        }
+        return pos
+
+    }
+
+    static calculateLeft(cardType, cardTitle){
+        const cardToLeft = this.getCardToLeft(cardType, cardTitle)
+        const startLeft = this.getCardLeftValue(cardToLeft)
+        const width = cardSizing.getWidth(cardToLeft)
+        return startLeft + width + cardSizing.padding 
+    }
+
+    static calculateTop(cardType, cardTitle){
+        const cardAbove = this.getCardAbove(cardType, cardTitle)
+        const startTop = this.getCardTopValue(cardAbove)
+        const height = cardSizing.getHeight(cardAbove)
+        return startTop + height + cardSizing.padding
+    }
+
+    static getCardLeftValue(card){
+        try{
+            const stringLeft = d3.select('#' + card.id + 'Div').style('left')
+            return parseInt(stringLeft.slice(0, stringLeft.indexOf('px')))
+        } catch {
+            return 0
+        }
+        
+    }
+
+    static getCardTopValue(card){
+        try{
+            const stringTop = d3.select('#' + card.id + 'Div').style('top')
+            return parseInt(stringTop.slice(0, stringTop.indexOf('px')))
+        } catch {
+            return 0
         }
     }
 
-    static calculateX(cardToLeft){
-        if(cardToLeft !== null){
-            const left = parseInt(this.getCardLeftValue(cardToLeft.id))
-            const width = parseInt(cardSizing.getWidth(cardToLeft.id))
-            return left + width + cardSizing.padding
-        } else {
-            return cardSizing.padding
-        }
-
-    }
-
-    static calculateY(cardAbove){
-            return cardSizing.padding
-    }
-
-    static getCardLeftValue(cardID){
-        const stringLeft = d3.select('#' + cardID + 'Div').style('left')
-        return stringLeft.slice(0, stringLeft.indexOf('px'))
-    }
-    
-    static getCardToLeft(card){ 
-        switch(card.title){
-            case 'Enterprise':
-                return null;
-            case 'Activity':
-                return displays.cards['enterprise']
+    static getCardToLeft(cardType, cardTitle){ 
+        if(cardType === 'listBoxCard'){
+            switch(cardTitle){
+                case 'Enterprise':
+                    return null;
+                case 'Activity':
+                    return displays.cards['enterprise']
+            }
+        } else if (cardType === 'optionCard'){
+            return null;
         }
     }
 
-    static getCardAbove(cardAbove){
-        return 0
+
+    static getCardAbove(cardType, cardTitle){
+        if(cardType === 'listBoxCard'){
+            return null
+        } else if (cardType === 'optionCard'){
+            const cardArray = Object.values(displays.cards)
+            const i = cardArray.findIndex(card => card.title === cardTitle)
+            const cardAbove = i === -1 ? cardArray[cardArray.length - 1] : cardArray [i - 1]
+            return cardAbove
+            
+        }
     }
 }
 
 class cardSizing {
     static padding = 15
+
+    static calculateStartingDimensions(cardType){
+        const itemCount = cardType === 'listBoxCard' ? 6 : 2
+        return {
+            width: 300,
+            height: this.calculateCardHeight(itemCount)
+        }
+    }
     
-    static getWidth(cardID){
-        const stringWidth = d3.select('#' + cardID + 'Svg').style('width')
-        return stringWidth.slice(0, stringWidth.indexOf('px'))
+    static getWidth(card){
+        try{
+            const stringWidth = d3.select('#' + card.id + 'Div').style('width')
+            return parseInt(stringWidth.slice(0, stringWidth.indexOf('px')))
+        } catch {
+            return 0
+        }
+    }
+
+    static getHeight(card){
+        try{
+            const stringHeight = d3.select('#' + card.id + 'Div').style('height')
+            return parseInt(stringHeight.slice(0, stringHeight.indexOf('px')))
+        } catch {
+            return 0
+        }
+        
+    }
+
+    static calculateCardHeight (itemCount){
+        const itemHeight = Math.round(cardItem.fontSize * 1.618)
+        return itemCount * itemHeight + cardSizing.padding * 2
     }
     
     static calculateCardWidth (cardID){
@@ -194,9 +460,9 @@ class cardSizing {
 
 class cardFactory {
 
-    createCard(type, title){
+    createCard(type, title, position, dimensions){
         const card = this.#createObject(type, title)
-        this.#addDiv(card)
+        this.#addDiv(card, position, dimensions)
         this.#addSvg(card)
         return card
     }
@@ -210,11 +476,15 @@ class cardFactory {
         }
     }
 
-    #addDiv(card){
+    #addDiv(card, position, dimensions){
         card.div = d3.select('body')
             .append('div')
             .attr('id', card.id + 'Div')
             .style('position', 'absolute')
+            .style('left', position.left + 'px')
+            .style('top', position.top + 'px')
+            .style('width', dimensions.width + 'px')
+            .style('height', dimensions.height + 'px')
             .style('border-radius', '10px')
             .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
     }
@@ -238,24 +508,65 @@ class cardControl {
         card.items = this.handler.getCardData(card.title)
         this.contentDynamics.renderItems(card)
         this.dynamics.expand(card)
-        this.dynamics.move(card, cardPositioning.calculateStartingPosition(card))
-        return this.dynamics.emerge(card)
+
+        let position = {}
+        
+        switch(card.constructor.name){
+            case 'listBoxCard':
+                position = cardPositioning.calculateStartingPosition('listBoxCard', card.title)
+                this.dynamics.move(card, position)
+                return this.dynamics.emerge(card)
+            case 'optionCard':
+                position = cardPositioning.calculateStartingPosition('optionCard', card.title)
+                await this.dynamics.emerge(card)
+                return this.dynamics.move(card, position, 300)
+        }
+        
     }
 
-    renderItemHighlightChange(itemID, eventType){
+    unload(card){
+        const position = cardPositioning.calculateRemovalPosition(card)
+        return this.dynamics.move(card, position, 300)
+    }
+
+    mouseoverItem(item){
+        const selectable = (item)=> item.selectable
+        const selected = (item) => item.selected
+
+        if(selectable(item) && !selected(item)){
+            this.updateFontWeight(item.id, 'bold')
+        } 
+    }
+
+    mouseOffItem(item){
+        const selectable = (item)=> item.selectable
+        const selected = (item) => item.selected
+        if(selectable(item) && !selected(item)){
+            this.updateFontWeight(item.id, 'normal')
+        } 
+    }
+
+    updateFontWeight(itemID, fontWeight){
         const elem = d3.select('#' + itemID)
-        const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
         elem.select('text').style('font-weight', fontWeight)
     }
 
-    renderSelectionChange(card){
+
+    async renderSelectionChange(card){
+        this.contentDynamics.renderItems(card)
+        if(card.constructor.name === 'listBoxCard'){
+            await this.resizeOnSelectionChange(card)
+        }
+    }
+
+    async resizeOnSelectionChange(card){
         if(card.items.some(item => item.selected)){
-            this.dynamics.contract(card)
+            await this.dynamics.contract(card, 300)
         } else {
-            this.dynamics.expand(card)
+            await this.dynamics.expand(card, 300)
         }
 
-        this.contentDynamics.renderItems(card)
+        return Promise.resolve()
     }
 
     renderSelectabilityChange(card, selectableItemLabels){
@@ -275,11 +586,11 @@ class cardControl {
 
 class cardDynamics {
 
-    emerge(card){
+    emerge(card, duration = 0){
         this.setWidth(card)
         
         return card.div.transition()
-            .duration(300)
+            .duration(duration)
             .ease(d3.easeCubicIn)
                 .style('background-color', 'white')
                 .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
@@ -292,28 +603,33 @@ class cardDynamics {
         card.svg.style('width', width)
     }
 
-    expand(card){
+    expand(card, duration = 0){
         const calculateHeight = (itemCount) => {
             const itemHeight = Math.round(cardItem.fontSize * 1.618)
             return itemCount * itemHeight + cardSizing.padding * 2
         }
 
         const divHeight = calculateHeight(card.maxVisibleItems)
-        const svgHeight = calculateHeight(card.items.count)
-
-        card.div.transition()
-            .duration(400)
-                .style('height', divHeight + 'px')
+        const svgHeight = calculateHeight(card.items.length)
 
         card.svg.style('height', svgHeight)
+        return card.div.transition()
+            .duration(duration)
+                .style('height', divHeight + 'px')
+            .end()
+
+        
     }
 
-    move(card, coordinates){
-        card.div.style('top', coordinates.top + 'px')
-            .style('left', coordinates.left + 'px')
+    move(card, coordinates, duration = 0){
+        return card.div.transition()
+            .duration(duration)
+                .style('top', coordinates.top + 'px')
+                .style('left', coordinates.left + 'px')
+            .end()
     }
 
-    contract(card){
+    contract(card, duration = 0){
         const calculateHeight = (itemCount) => {
             const itemHeight = Math.round(cardItem.fontSize * 1.618)
             return itemCount * itemHeight + cardSizing.padding * 2
@@ -323,12 +639,14 @@ class cardDynamics {
         const divHeight = calculateHeight(2)
         const svgHeight = calculateHeight(card.items.count)
 
-        card.div.transition()
-            .duration(400)
-                .style('height', divHeight + 'px')
-
         card.svg.style('height', svgHeight)
 
+        return card.div.transition()
+            .duration(duration)
+                .style('height', divHeight + 'px')
+            .end()
+
+    
     }
 
 
@@ -338,6 +656,7 @@ class cardDynamics {
 
 class cardContentDynamics {
     async renderItems(card){
+
         const fn = {
             positioning: new cardItemPositioning (card.items),
             styling: new cardItemStyling (card.items),
@@ -371,9 +690,9 @@ class cardContentDynamics {
             .attr('id', d => d.id)
             .attr('class', fn.cardLabel)
             .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-            .on('mouseover', (event, d) => onItemHover(event, d))
-            .on('mouseout', (event, d) => onItemOff(event, d))
-            .on('click', (event, d) => onItemClick(event, d))
+            .on('mouseover', (event, d) => cardEvents.onItemHover(event, d))
+            .on('mouseout', (event, d) => cardEvents.onItemOff(event, d))
+            .on('click', (event, d) => cardEvents.onItemClick(event, d))
 
         const text = groups.append('text')
             .text(d => d.label)
@@ -407,71 +726,30 @@ class cardContentDynamics {
 }
 
 class dataHandler{
+    getOptionCardData(title){
+        console.log(title)
+        const obligations = obligationData.getItems() 
+        const items = []
+                items.push(obligations.find(item => item.label === 'obligation'))
+                items.push(obligations.find(item => item.label === title))
+                return items
+
+    }
+
+
+
+
+
     getCardData(title){
         switch(title){
             case 'Enterprise':
                 return enterpriseData.getItems()
             case 'Activity':
                 return activityData.getItems()
+            default:
+                return this.getOptionCardData(title)
         }
     }
-}
-
-async function loadObligations(){
-    const obligations = obligationData.getSelectableItems()
-    return createConnectors(obligations, 'obligation')
-}
-
-async function loadConnectors(){
-    const obligations = obligationData.getSelectableItems()
-    const mechanisms = mechanismData.getObligationSelectableItems()
-    return createConnectors(obligations, 'obligation')
-}
-
-async function createConnectors(connectorItemLabels, type){
-    const transitions = []
-    
-    for(let i = 0; i < connectorItemLabels.length; i++){
-        const itemLabel = connectorItemLabels[i]
-        const cn = new connector(type, itemLabel, i)
-        cn.setup()
-        connectors.obligations.push(cn) 
-        transitions[i] = connectorControl.renderItems(cn.id, cn.label, cn.itemLabel, cn.type)
-        connectorControl.surfaceConnector(cn.id, i)
-    }
-
-    return Promise.all(transitions)
-
-}
-
-function unloadConnectors(){
-
-    const obligations = connectors.obligations
-
-    for(let i = 0; i < obligations.length; i++){
-        connectorControl.sinkConnector(obligations[i].id, i)
-    }
-    
-}
-
-async function loadConnector(connectorLabel){
-    //moveSelector(connectorLabel)
-    await connectorControl.load(connectorLabel)
-    connectorControl.resize(connectorLabel)
-}
-
-function onItemHover(event, d){
-    //selectionManager.itemHighlightChange(d, event.type)
-    displayOrchestration.updateFromItemHover(d, event.type)
-}
-
-function onItemOff(event, d){
-    //selectionManager.itemHighlightChange(d, event.type)
-    displayOrchestration.updateFromItemHover(d, event.type)
-}
-
-function onItemClick(event, d){
-    displayOrchestration.updateFromItemClick(d)
 }
 
 
@@ -553,341 +831,7 @@ class cardItemPositioning {
 
 }
 
-class selectionManager {
 
-    getSelectedItemLabel(items){
-        const selectedItem = this.getSelectedItem(items)
-        try{return selectedItem.label}
-        catch{return undefined}
-    }
-
-    getSelectedItem(items){
-        return items.find(item => item.selected === true)
-    }
-
-    updateItemSelection(itemID, itemsOnCard){
-        const selectable = (item)=> item.selectable
-        const idMatch = (item)=> item.id === itemID
-        itemsOnCard.forEach(item => {
-            item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
-        })
-    }
-
-    getSelectableItems(card){
-
-        switch(card.id){
-            case 'activity':
-                const selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
-                return activityData.getSelectableItems(selectedEnterprise)
-                
-            case 'enterprise':
-                return null
-        }
-    }
-
-    
-    getSelectionState(){
-        const cardArray = Object.values(displays.cards)
-        let selectionsArray = {}
-        cardArray.forEach(card => {
-            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
-        })
-        return selectionsArray
-    }
-
-
-
-
-    getDependentItems(item, card){
-        switch(card){
-            case 'enterprise':
-                return activityData.getSelectableItems()
-
-        }
-    }
-    
-
-    static itemHighlightChange(d, eventType){
-        const selectable = (item)=> item.constructor.name === 'cardItem' && item.selectable
-        const selected = (item) => item.selected
-
-        if(!selected(d) && selectable(d)){
-            const elem = d3.select('#' + d.id)
-            const fontWeight = eventType === 'mouseover' ? 'bold' : 'normal'
-            elem.select('text').style('font-weight', fontWeight)
-        }
-    }
-
-    static async itemSelectionChange(d){
-        const card = displays.cards[d.cardID]
-        this.updateItemSelection(d, card.items)
-
-       switch(d.cardID){
-            case 'enterprise':
-            case 'activity':
-                displayOrchestration.renderSelectionChange(card)
-                //this.renderSelectorSelectionChange(card)
-                //this.updateConnectors()
-                break;
-            case 'obligation':
-                this.renderConnectorSelectionChange()
-        }
- 
-    }
-
-
-    static getDisplayItems(displayLabel){
-        switch(displayLabel){
-            case 'enterprise':
-            case 'activity':
-                return selectors[displayLabel].items
-            case 'obligation':
-                return connectors.obligations[0].items
-        }
-    }
-
-    static getItems(cardLabel){
-        return selectors[cardLabel].items
-    }
-  
-
-    static renderSelectorSelectionChange(card){
-        if(card.items.some(item => item.selected)){
-            control.contract(card)
-        } else {
-            control.expand(card)
-        }
-
-        selectorControl.renderItems(cardLabel)
-
-        if(cardLabel === 'enterprise'){
-            this.updateItemsSelectability('activity')
-            selectorControl.renderItems('activity')
-        }
-
-
-    }
-
-    static renderConnectorSelectionChange(){
-        
-    }
-
-    static updateConnectors(){
-         const selectionsMade = () => {
-            const selectorStates = this.getCurrentState()
-            const keys = Object.keys(selectorStates)
-        
-            for (const key of keys){
-                if(selectorStates[key] === undefined){
-                    return false
-                }
-            }
-
-            return true
-        }
-
-        if(selectionsMade()){
-            loadConnectors()
-        } else {
-            unloadConnectors()
-        }
-    }
-
-    
-
-    
-
-    static deselectOtherItems(items){
-        const remainingItems = this.items.filter(item => {item.type === 'selectable', item.id !== selectedID})
-        remainingItems.map(obj => ({...obj, selected: false}))
-    }
-
-    
-}
-
-class connector {
-
-    static padding = 15
-    items = []
-
-    constructor(type, itemLabel, posNum){
-        this.id = type + (posNum + 1)
-        this.label = type + ' #' + (posNum + 1)
-        this.itemLabel = itemLabel
-        this.posNum = posNum
-        this.type = type
-    }
-
-    setup(){
-        this.createContainer()
-        this.createCanvas()
-        this.createItems()
-    }
-
-    createContainer(){
-        const left = 1000
-        const top = this.posNum * 60 + 100
-        const height = Math.round(cardItem.fontSize * gRatio) * 2 + cardSizing.padding * 2
-        
-        this.div = d3.select('body')
-            .append('div')
-            .attr('id', this.id + 'Div')
-            .style('position', 'absolute')
-            .style('background-color', styles.pageColour)
-            .style('box-shadow', styles.divShadowDown)
-            .style('left', left + 'px')
-            .style('top', top + 'px')
-            .style('height', height + 'px')
-    }
-
-    createCanvas(){
-        this.svg = this.div.append('svg')
-            .attr('id', this.id + 'Svg')
-    }
-
-    createItems(){
-        this.items = [
-            new cardLabel(this.label),
-            new cardItem(this.itemLabel, true)
-        ]
-
-        this.items.forEach(item => item.parentLabel = this.label)
-    }
-
-}
-
-class connectorControl {
-    static async renderItems(id, label, itemLabel, type){
-
-        const svg = d3.select('#' + id + 'Svg')
-        
-        const data = [
-            new cardLabel(label),
-            new cardItem(itemLabel, true)
-        ]
-
-        data.forEach(item => item.parentLabel = type)
-
-
-        const fn = {
-            positioning: new connectorItemPositioning (data),
-            styling: new connectorItemStyling (data),
-        }
-
-        let enterTransition = null;
-        let updateTransition = null;
-
-        svg.selectAll('g')
-            .data(data, d => d.id)
-            .join(
-                enter => {
-                    const t = this.enterItems(enter, fn)
-                    enterTransition = t
-                    return t
-                },
-                update => {
-                    const t = this.updateItems(update, fn)
-                    updateTransition = t
-                    return t
-                },
-                exit => this.exitItems(exit, fn)
-            )
-
-        return Promise.all([enterTransition.end(), updateTransition.end()])
-
-    }
-
-    static enterItems(selection, fn){
-
-        const groups = selection.append('g')
-            .attr('id', d => d.id)
-            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-            .on('mouseover', (event, d) => onItemHover(event, d))
-            .on('mouseout', (event, d) => onItemOff(event, d))
-            .on('click', (event, d) => onItemClick(event, d))
-            
-
-        const text = groups.append('text')
-            .text(d => d.label)
-            .style('fill', styles.pageColour)
-            .attr('dx', 0)
-            .attr('dy', cardItem.fontSize)
-            
-        return text.transition('textAppearing')
-            .duration(1000)
-            .style('fill', d => fn.styling.getTextColour(d))
-
-    }
-
-    static updateItems(selection, fn){
-        const groups = selection.transition('itemOrder')
-            .duration(350)
-            .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-
-        groups.select('text')
-            .style('font-weight', d => fn.styling.getFontWeight(d))
-            .style('fill', d => fn.styling.getTextColour(d))
-            
-
-        return groups
-    }
-
-    static exitItems(selection, fn){
-        return selection.remove()
-    }
-
-    static surfaceConnector(id, posNum){
-        const left = 15
-        const div = d3.select('div#' + id + 'Div')
-        div.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(350)
-            .delay(posNum * 50)
-            .style('left', left + 'px')
-            .style('background-color', styles.divColour)
-            .style('box-shadow', styles.divShadowUp)
-    }
-
-    static sinkConnector(id, posNum){
-        const left = 1000
-        const div = d3.select('div#' + id + 'Div')
-        const t = div.transition()
-            .ease(d3.easeCubicInOut)
-            .duration(350)
-            .delay(posNum * 50)
-            .style('left', left + 'px')
-            .style('background-color', styles.pageColour)
-            .style('box-shadow', styles.divShadowDown)
-            
-        t.end().then(() => div.remove())
-
-    }
-}
-
-class connectorItemStyling {
-    getTextColour(d, i){
-        if(d.constructor.name === 'cardLabel'){
-            return '#336BF0'
-        }  else {
-            return '#131C3E'
-        }
-    }
-
-    getFontWeight(d){
-        return d.selected ? 'bold' : 'normal'
-    }
-
-}
-
-class connectorItemPositioning {
-
-    getTranslate(d, i){
-        const x = cardSizing.padding
-        const y = i * Math.round(cardItem.fontSize * 1.618) + cardSizing.padding
-        return d3Helper.getTranslateString(x, y)
-    }
-
-}
 
 class enterpriseData {  
     static getItems(){
@@ -951,6 +895,13 @@ class activityData {
 class obligationData {
 
     static getItems (){
+        const items = this.createItems()
+        console.log(items)
+        items.forEach(item => {item.cardID = item.id})
+        return items
+    }
+
+    static createItems(){
         return [
             new cardLabel ('obligation'),
             new cardItem ('register for income tax'),
@@ -969,10 +920,11 @@ class obligationData {
         ]
     }
 
-    static getSelectableItems (){
-        const selectorStates = selectionManager.getCurrentState()
-        const itemsEnterprise = this.getEnterpriseSelectableItems(selectorStates['enterprise'])
-        const itemsActivity = this.getActivitySelectableItems(selectorStates['activity'])
+
+
+    static getSelectableItems (selectedEnterprise, selectedActivity){
+        const itemsEnterprise = this.getEnterpriseSelectableItems(selectedEnterprise)
+        const itemsActivity = this.getActivitySelectableItems(selectedActivity)
         return itemsEnterprise.filter(item => itemsActivity.includes(item))
     }
 
@@ -1069,48 +1021,7 @@ class mechanismData {
 }
 
 
-class cardItem {
 
-    static fontSize = 12
-
-    constructor(label, selectable = true){
-        this.label = label
-        this.selectable = selectable
-        this.setID()
-    }
-
-    setID(){
-        this.id = this.constructor.name === 'cardLabel' ? 'label' : this.label.replaceAll(' ','')
-    }
-
-    setParentSelector(cardLabel){
-        this.parentSelector = cardLabel
-    }
-}
-
-class cardLabel extends cardItem {
-    constructor(label){
-        super(label, false)
-    }
-}
-
-
-class windowControl {
-    
-    div = {}
-    svg = {}
-    divWidth = 0
-    divHeight = 0
-    svgWidth = 0
-    svgHeight = 0
-
-    getWidth(){
-        const widthText = this.div.style('width')
-        return widthText.slice(0, widthText.indexOf('px'))
-    }
-
-
-}
 
 class d3Helper {
     static getTranslateString(x, y){
