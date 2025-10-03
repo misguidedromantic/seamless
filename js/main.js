@@ -1,10 +1,56 @@
 const gRatio = 1.618
 
 window.onload = function(){
+
+    const calculateCardHeight = (itemCount) => {
+        const itemHeight = Math.round(cardItem.fontSize * 1.618)
+        return itemCount * itemHeight + cardSizing.padding * 2
+    }
+
+    const enterprises = enterpriseData.getItems()
+    //const enterpriseCard = new card ('enterprise', 'enterprise', enterprises)
+    const startingPosition = {top: 0, left: 0}
+    const startingDimensions = {
+        height: calculateCardHeight(enterprises.length),
+        width: 300
+    }
+    const factory = new cardFactory
+    factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions)
     
-    displayOrchestration.setup()
+    
+    
+/*     displayOrchestration.setup()
     displayOrchestration.initialLoad()
+
+    function createObjectives(){
+        const obligations = obligationData.getAllObligations()
+        obligations.forEach(obligation => {
+            obligation.mechanisms = mechanismData.getApplicableMechanisms(obligation.description)
+        })
+    }
+
+    function createObjectiveCard(objective){
+        const objectiveCard = new card (objective.description, 'objective', objective.mechanisms)
+    }
+
+    createObjectives() */
+
 }
+
+class card {
+    constructor(type, title){
+        this.type = type
+        this.title = title
+    }
+
+    data(){
+        return [
+            new cardItem ()
+        ]
+    }
+
+}
+
 
 
 class orchestration {
@@ -58,7 +104,28 @@ class enterprise {
 
 }
 class activity {}
-class obligation {}
+
+class objective {
+    constructor(description){
+        this.description = description
+        this.id = description.replaceAll(' ','')
+    }
+
+
+    cardData(){
+        return [
+            
+        ]
+    }
+}
+
+class obligation extends objective {
+    constructor(description){
+        super(description)
+    }
+}
+
+
 class mechanism {}
 
 class cardItem {
@@ -473,6 +540,8 @@ class cardFactory {
                 return new listBoxCard(title)
             case 'optionCard':
                 return new optionCard(title)
+            default:
+                return new card(type, title)
         }
     }
 
@@ -894,9 +963,27 @@ class activityData {
 
 class obligationData {
 
+    static getAllObligations(){
+        return [
+            new obligation ('register for income tax'),
+            new obligation ('record keep for income tax'),
+            new obligation ('calculate income tax'),
+            new obligation ('report income tax'),
+            new obligation ('pay income tax'),
+            new obligation ('calculate vat'),
+            new obligation ('collect vat'),
+            new obligation ('report vat'),
+            new obligation ('pay vat'),
+            new obligation ('calculate payroll tax'),
+            new obligation ('collect payroll tax'),
+            new obligation ('report payroll tax'),
+            new obligation ('pay payroll tax'),
+        ]
+
+    }
+
     static getItems (){
         const items = this.createItems()
-        console.log(items)
         items.forEach(item => {item.cardID = item.id})
         return items
     }
@@ -992,6 +1079,22 @@ class obligationData {
 }
 
 class mechanismData {
+
+    static getApplicableMechanisms(objectiveDescription){
+        const mechanisms = []
+        switch(objectiveDescription){
+            case 'calculate income tax':
+            case 'report income tax': 
+            case 'pay income tax':
+                mechanisms.push('entreprenuers bank account')
+                break;
+            case 'register for income tax':
+                mechanisms.push('entreprenuers bank account')
+                mechanisms.push('government business registry')
+            break;
+        }
+        return mechanisms
+    }
 
     static getItems (){
         return [
