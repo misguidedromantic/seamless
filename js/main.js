@@ -17,8 +17,6 @@ window.onload = function(){
     const factory = new cardFactory
     factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions) */
     
-    
-    
     displayOrchestration.setup()
     displayOrchestration.initialLoad()
 
@@ -74,19 +72,34 @@ function getCardsToUnload(selectedEnterprise, selectedActivity, applicableObject
 }
 
 function getCardsToLoad(selectedEnterprise, selectedActivity){
-    const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise)
-    const activityObjectives = objectiveData.getObjectivesForEnterprise(selectedActivity)
-    
+    if(selectedEnterprise === null){
+        return null    
+    }
 
+    if(selectedActivity === null){
+        return displays.cards['activity'] === undefined ? ['activity'] : null
+    }
+
+
+    const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
+    const activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
+    
+    const enterpriseSet = new Set (activityObjectives)
+    const applicableObjectives = activityObjectives.filter(element => enterpriseSet.has(element))
+    
+    console.log(applicableObjectives)
+     
 }
 
 function updateCards (){
 
     const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+    
     const selectedActivity = displays.cards['activity'].selectedItem()
 
     const cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
-
+    const cardsToLoad = getCardsToLoad(selectedEnterprise, selectedActivity)
+    
 
     //const selectedEnterprise = displays.cards['enterprise'].selectedItem()
     
@@ -107,9 +120,7 @@ function updateCards (){
     
     
 
-    const applicableObjectives = () => {
-        
-    }
+    
 
     console.log(applicableObjectives()) */
 }
@@ -1062,6 +1073,41 @@ class objectiveData {
                 labels.push ('calculate income tax')
                 labels.push ('report income tax')
                 labels.push ('pay income tax')
+        }
+        return labels
+    }
+
+    static getObjectivesForActivity(activity){
+        const labels = []
+        switch(activity){
+            case 'paying employees':
+                labels.push ('calculate payroll tax')
+                labels.push ('collect payroll tax')
+                labels.push ('report payroll tax')
+                labels.push ('pay payroll tax')
+                break;
+            
+            case 'selling to a customer':
+                labels.push ('record keep for income tax')
+                labels.push ('calculate vat')
+                labels.push ('collect vat')
+                labels.push ('report vat')
+            
+            case 'selling to enterprise':
+                labels.push ('pay vat')
+                break;
+            
+            case 'starting the business':
+                labels.push ('register for income tax')
+                labels.push ('register for vat')
+                break;
+
+            case 'setting up fin mgmt systems': 
+                labels.push ('collect payroll tax')
+                labels.push ('calculate income tax')
+                labels.push ('report income tax')
+                labels.push ('pay income tax')
+                break;
         }
         return labels
     }
