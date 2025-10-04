@@ -2,7 +2,7 @@ const gRatio = 1.618
 
 window.onload = function(){
 
-    const calculateCardHeight = (itemCount) => {
+/*     const calculateCardHeight = (itemCount) => {
         const itemHeight = Math.round(cardItem.fontSize * 1.618)
         return itemCount * itemHeight + cardSizing.padding * 2
     }
@@ -15,11 +15,11 @@ window.onload = function(){
         width: 300
     }
     const factory = new cardFactory
-    factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions)
+    factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions) */
     
     
     
-/*     displayOrchestration.setup()
+    displayOrchestration.setup()
     displayOrchestration.initialLoad()
 
     function createObjectives(){
@@ -33,8 +33,85 @@ window.onload = function(){
         const objectiveCard = new card (objective.description, 'objective', objective.mechanisms)
     }
 
-    createObjectives() */
+    createObjectives()
 
+}
+
+
+
+function getCardsToUnload(selectedEnterprise, selectedActivity, applicableObjectives){
+
+    const shouldUnload = (cardTitle) => {
+        switch(cardTitle){
+            case 'enterprise':
+                return false
+            case 'activity':
+                return selectedEnterprise === null
+            default:
+                if(selectedEnterprise === null || selectedActivity === null){
+                    return true
+                } else if (applicableObjectives.includes(cardTitle)) {
+                    return false //more criteria to add
+                } else {
+                    return true
+                } 
+                
+        }
+    }
+    
+    const loadedCards = Object.keys(displays.cards)
+    const cardsToUnload = []
+    
+    for(i = 0; i < loadedCards.length; i++){
+        const cardTitle = loadedCards[i]
+        if(shouldUnload(cardTitle)){
+            cardsToUnload.push(cardTitle)
+        }
+    }
+
+    return cardsToUnload
+    
+}
+
+function getCardsToLoad(selectedEnterprise, selectedActivity){
+    const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise)
+    const activityObjectives = objectiveData.getObjectivesForEnterprise(selectedActivity)
+    
+
+}
+
+function updateCards (){
+
+    const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+    const selectedActivity = displays.cards['activity'].selectedItem()
+
+    const cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
+
+
+    //const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+    
+    /* if(selectedEnterprise === null){
+        for (const card in displays.cards){
+            if(card !== 'enterprise'){
+                cardsToUnload.push(card)
+            }
+        }
+    }
+
+
+
+
+
+    
+    
+    
+    
+
+    const applicableObjectives = () => {
+        
+    }
+
+    console.log(applicableObjectives()) */
 }
 
 class card {
@@ -43,11 +120,7 @@ class card {
         this.title = title
     }
 
-    data(){
-        return [
-            new cardItem ()
-        ]
-    }
+    
 
 }
 
@@ -291,17 +364,19 @@ class displayOrchestration {
 
     static async itemClicked(item){
         const clickedCard = displays.cards[item.cardID]
+        this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
 
-        if(clickedCard.constructor.name === 'listBoxCard'){
+/*         if(clickedCard.constructor.name === 'listBoxCard'){
             this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
             await this.#cardControl.renderSelectionChange(clickedCard)
             this.updateSelectableState()
             await this.refresh()
         } else if (clickedCard.constructor.name === 'optionCard'){
             this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
-        }
+        } */
 
-        orchestration.selectionChange()
+        updateCards()
+        //orchestration.selectionChange()
 
     }
 
@@ -354,6 +429,11 @@ class listBoxCard {
     constructor(title){
         this.title = title
         this.id = this.title.toLowerCase().replaceAll(' ','')
+    }
+
+    selectedItem(){
+        const foundItem = this.items.find(item => item.selected)
+        return foundItem === undefined ? null : foundItem
     }
 
 }
@@ -957,6 +1037,32 @@ class activityData {
                 labels.push('setting up fin mgmt systems')
         }
         
+        return labels
+    }
+}
+
+class objectiveData {
+    static getObjectivesForEnterprise(enterprise){
+        const labels = []
+        switch(enterprise){
+            default:
+            case 'construction company':
+                labels.push ('calculate payroll tax')
+                labels.push ('collect payroll tax')
+                labels.push ('report payroll tax')
+                labels.push ('pay payroll tax')
+            case 'freelance profressional':
+                labels.push ('calculate vat')
+                labels.push ('collect vat')
+                labels.push ('report vat')
+                labels.push ('pay vat')
+            case 'side hustle':
+                labels.push ('register for income tax')
+                labels.push ('record keep for income tax')
+                labels.push ('calculate income tax')
+                labels.push ('report income tax')
+                labels.push ('pay income tax')
+        }
         return labels
     }
 }
