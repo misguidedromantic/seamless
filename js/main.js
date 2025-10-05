@@ -18,9 +18,9 @@ window.onload = function(){
     factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions) */
     
     displayOrchestration.setup()
-    displayOrchestration.initialLoad()
+    displayOrchestration.loadCard('listBoxCard', 'enterprise')
 
-    function createObjectives(){
+/*     function createObjectives(){
         const obligations = obligationData.getAllObligations()
         obligations.forEach(obligation => {
             obligation.mechanisms = mechanismData.getApplicableMechanisms(obligation.description)
@@ -31,10 +31,9 @@ window.onload = function(){
         const objectiveCard = new card (objective.description, 'objective', objective.mechanisms)
     }
 
-    createObjectives()
+    createObjectives() */
 
 }
-
 
 
 function getCardsToUnload(selectedEnterprise, selectedActivity, applicableObjectives){
@@ -94,11 +93,42 @@ function getCardsToLoad(selectedEnterprise, selectedActivity){
 function updateCards (){
 
     const selectedEnterprise = displays.cards['enterprise'].selectedItem()
-    
-    const selectedActivity = displays.cards['activity'].selectedItem()
 
-    const cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
-    const cardsToLoad = getCardsToLoad(selectedEnterprise, selectedActivity)
+    const cardLoaded = (cardTitle) => {
+        const loadedCard = displays.cards[cardTitle]
+        return loadedCard === undefined ? false : true
+    }
+
+    const shouldLoad = (cardTitle) => {
+        if(cardTitle === 'activity'){
+            return !cardLoaded(cardTitle) && selectedEnterprise !== null  
+        }
+    }
+
+    const shouldUnLoad = (cardTitle) => {
+        if(cardTitle === 'activity'){
+            return cardLoaded(cardTitle) && selectedEnterprise == null  
+        }
+    }
+
+    console.log(shouldLoad('activity'))
+    console.log(shouldUnLoad('activity'))
+    
+
+        
+    //const selectedActivity = displays.cards['activity'].selectedItem()
+    //cardsToLoad = getCardsToLoad(selectedEnterprise, selectedActivity)
+  
+        
+
+
+    
+
+
+    
+    
+
+    //cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
     
 
     //const selectedEnterprise = displays.cards['enterprise'].selectedItem()
@@ -320,17 +350,26 @@ class displayOrchestration {
     static #factory = {}
     static #cardControl = {}
     static #selectionManager = {}
-    
+
     static setup(){
         this.#factory = new cardFactory
         this.#cardControl = new cardControl
         this.#selectionManager = new selectionManager
     }
 
-    static initialLoad(){
-        const cardTitles = ['Enterprise','Activity']
-        const cards = this.createCards('listBoxCard', cardTitles)
-        this.loadCards(cards)
+    static loadCard(type, title){
+        const card = this.#factory.createCard(type, title)
+        displays.addCard(card)
+        this.#cardControl.setup(card)
+        this.#cardControl.load(card)
+    }
+
+    static async unloadCard(cardID){
+        const card = displays.cards[cardID]
+        await this.#cardControl.unload(card)
+        card.div.remove()
+        delete displays.cards[cardID]
+        return Promise.resolve()
     }
 
     static createCards(cardType, cardTitles){
@@ -355,13 +394,7 @@ class displayOrchestration {
         return Promise.resolve()
     }
 
-    static async unloadCard(cardID){
-        const card = displays.cards[cardID]
-        await this.#cardControl.unload(card)
-        card.div.remove()
-        delete displays.cards[cardID]
-        return Promise.resolve()
-    }
+    
 
     static mouseoverItem(item){
         const isCardItem = (item) => item.constructor.name === 'cardItem'
@@ -375,6 +408,7 @@ class displayOrchestration {
 
     static async itemClicked(item){
         const clickedCard = displays.cards[item.cardID]
+        console.log(clickedCard)
         this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
 
 /*         if(clickedCard.constructor.name === 'listBoxCard'){
@@ -466,14 +500,15 @@ class cardHolder {
 }
 
 class cardPositioning {
-    static calculatePreEntryPosition(cardType, cardTitle){
+    static calculatePreEntryPosition(card){
+
         const pos = {}
-        if(cardType === 'listBoxCard'){
-            pos.left = this.calculateLeft(cardType, cardTitle)
-        } else if (cardType === 'optionCard'){
+        if(card.constructor.name === 'listBoxCard'){
+            pos.left = this.calculateLeft(card.constructor.name, card.title)
+        } else if (card.constructor.name  === 'optionCard'){
             pos.left = -300
         }
-        pos.top = this.calculateTop(cardType, cardTitle)
+        pos.top = this.calculateTop(card.constructor.name, card.title)
         return pos
 
     }
@@ -557,7 +592,7 @@ class cardPositioning {
 
 class cardSizing {
     static padding = 15
-
+    
     static calculateStartingDimensions(cardType){
         const itemCount = cardType === 'listBoxCard' ? 6 : 2
         return {
@@ -618,13 +653,13 @@ class cardSizing {
 
 class cardFactory {
 
-    createCard(type, title, position, dimensions){
+    createCard(type, title){
         const card = this.#createObject(type, title)
-        this.#addDiv(card, position, dimensions)
+        this.#addDiv(card)
         this.#addSvg(card)
         return card
     }
-    
+
     #createObject(type, title){
         switch(type){
             case 'listBoxCard':
@@ -636,17 +671,19 @@ class cardFactory {
         }
     }
 
-    #addDiv(card, position, dimensions){
+
+    #addDiv(card){
         card.div = d3.select('body')
             .append('div')
             .attr('id', card.id + 'Div')
             .style('position', 'absolute')
-            .style('left', position.left + 'px')
-            .style('top', position.top + 'px')
-            .style('width', dimensions.width + 'px')
-            .style('height', dimensions.height + 'px')
             .style('border-radius', '10px')
             .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
+
+/*             .style('left', position.left + 'px')
+            .style('top', position.top + 'px')
+            .style('width', dimensions.width + 'px')
+            .style('height', dimensions.height + 'px') */
     }
 
     #addSvg(card){
@@ -664,11 +701,38 @@ class cardControl {
         this.contentDynamics = new cardContentDynamics ()
     }
 
-    async load(card){
-        card.items = this.handler.getCardData(card.title)
-        this.contentDynamics.renderItems(card)
-        this.dynamics.expand(card)
+    setup(card){
+        this.#loadItems(card)
+        this.#setSize(card)
+        this.#setPosition(card)
+        console.log(card)
+    }
 
+    #loadItems(card){
+        card.items = this.handler.getCardData(card.title)
+        
+        //this.contentDynamics.renderItems(card)
+    }
+
+    #setSize(card){
+        const dimensions = cardSizing.calculateStartingDimensions(card.constructor.name)
+        console.log(dimensions)
+        this.dynamics.resize(card, dimensions, 0)
+    }
+
+    #setPosition(card){
+        const coordinates = cardPositioning.calculatePreEntryPosition(card)
+        this.dynamics.move(card, coordinates, 0)
+    }
+
+
+
+    async load(card){
+        this.dynamics.emerge(card, 300)
+        this.contentDynamics.renderItems(card)
+
+
+        /* this.dynamics.expand(card)
         let position = {}
         
         switch(card.constructor.name){
@@ -680,7 +744,7 @@ class cardControl {
                 position = cardPositioning.calculateStartingPosition('optionCard', card.title)
                 await this.dynamics.emerge(card)
                 return this.dynamics.move(card, position, 300)
-        }
+        } */
         
     }
 
@@ -747,8 +811,6 @@ class cardControl {
 class cardDynamics {
 
     emerge(card, duration = 0){
-        this.setWidth(card)
-        
         return card.div.transition()
             .duration(duration)
             .ease(d3.easeCubicIn)
@@ -757,10 +819,32 @@ class cardDynamics {
             .end()
     }
 
+    move(card, coordinates, duration = 0){
+        return card.div.transition()
+            .duration(duration)
+                .style('top', coordinates.top + 'px')
+                .style('left', coordinates.left + 'px')
+            .end()
+    }
+
+    resize(card, dimensions, duration){
+        return card.div.transition()
+            .duration(duration)
+                .style('width', dimensions.width + 'px')
+                .style('height', dimensions.height + 'px')
+            .end()
+    }
+
     setWidth(card){
         const width = cardSizing.calculateCardWidth(card.id)
         card.div.style('width', width + 'px')
         card.svg.style('width', width)
+    }
+
+    setHeight(card){
+        const height = cardSizing.calculateCardWidth(card.id)
+        card.div.style('height', height + 'px')
+        card.svg.style('height', height)
     }
 
     expand(card, duration = 0){
@@ -781,13 +865,7 @@ class cardDynamics {
         
     }
 
-    move(card, coordinates, duration = 0){
-        return card.div.transition()
-            .duration(duration)
-                .style('top', coordinates.top + 'px')
-                .style('left', coordinates.left + 'px')
-            .end()
-    }
+    
 
     contract(card, duration = 0){
         const calculateHeight = (itemCount) => {
@@ -902,9 +980,9 @@ class dataHandler{
 
     getCardData(title){
         switch(title){
-            case 'Enterprise':
+            case 'enterprise':
                 return enterpriseData.getItems()
-            case 'Activity':
+            case 'activity':
                 return activityData.getItems()
             default:
                 return this.getOptionCardData(title)
