@@ -1,40 +1,9 @@
 const gRatio = 1.618
 
 window.onload = function(){
-
-/*     const calculateCardHeight = (itemCount) => {
-        const itemHeight = Math.round(cardItem.fontSize * 1.618)
-        return itemCount * itemHeight + cardSizing.padding * 2
-    }
-
-    const enterprises = enterpriseData.getItems()
-    //const enterpriseCard = new card ('enterprise', 'enterprise', enterprises)
-    const startingPosition = {top: 0, left: 0}
-    const startingDimensions = {
-        height: calculateCardHeight(enterprises.length),
-        width: 300
-    }
-    const factory = new cardFactory
-    factory.createCard('listBoxCard', 'enterprise', startingPosition, startingDimensions) */
-    
     displayOrchestration.setup()
-    displayOrchestration.loadCard('listBoxCard', 'enterprise')
-
-/*     function createObjectives(){
-        const obligations = obligationData.getAllObligations()
-        obligations.forEach(obligation => {
-            obligation.mechanisms = mechanismData.getApplicableMechanisms(obligation.description)
-        })
-    }
-
-    function createObjectiveCard(objective){
-        const objectiveCard = new card (objective.description, 'objective', objective.mechanisms)
-    }
-
-    createObjectives() */
-
+    displayOrchestration.loadCard('enterprise')
 }
-
 
 function getCardsToUnload(selectedEnterprise, selectedActivity, applicableObjectives){
 
@@ -80,24 +49,117 @@ function getCardsToLoad(selectedEnterprise, selectedActivity){
     }
 
 
-    const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
-    const activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
     
-    const enterpriseSet = new Set (activityObjectives)
-    const applicableObjectives = activityObjectives.filter(element => enterpriseSet.has(element))
     
-    console.log(applicableObjectives)
      
+}
+ 
+
+function syncCardVisbilityWithSelection(){
+
 }
 
 function updateCards (){
-
-    const selectedEnterprise = displays.cards['enterprise'].selectedItem()
 
     const cardLoaded = (cardTitle) => {
         const loadedCard = displays.cards[cardTitle]
         return loadedCard === undefined ? false : true
     }
+
+    const loaded = Object.keys(displays.cards)
+    const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+    let enterpriseSet = {}
+    let selectedActivity = undefined
+    
+    
+    let activityObjectives = [] 
+    
+    let shouldBes = []
+    let shouldntBes = []
+
+    loaded.forEach(cardTitle => {
+        if(cardTitle === 'enterprise'){
+            if(selectedEnterprise === null){
+                shouldntBes.push('activity')
+            } else {
+                shouldBes.push('activity')
+                const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
+                enterpriseSet = new Set (enterpriseObjectives)
+            }
+        } else if (cardTitle === 'activity'){
+            selectedActivity = displays.cards['activity'].selectedItem()
+            if(selectedActivity !== null){
+                activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
+                const applicableObjectives = activityObjectives.filter(element => enterpriseSet.has(element))
+                shouldBes = [...shouldBes, ...applicableObjectives]
+            }
+        } else {
+            if(selectedEnterprise === null || selectedActivity === null){
+                shouldntBes.push(cardTitle)
+            } else {
+                const nonApplicableObjectives = activityObjectives.filter(element => !enterpriseSet.has(element))
+                shouldntBes = [...shouldntBes, nonApplicableObjectives]
+            }
+        }
+    })
+
+    shouldBes.forEach(cardTitle => {
+        if(cardTitle === 'pay vat'){
+            console.log(cardLoaded(cardTitle))
+        }
+
+        if(!cardLoaded(cardTitle)){
+            displayOrchestration.loadCard(cardTitle)        
+        } else {
+            displayOrchestration.updateCard(cardTitle)
+        }
+    })
+
+    shouldntBes.forEach(cardTitle => {
+        displayOrchestration.unloadCard(cardTitle) 
+    })
+
+    const toUnload = []
+    const toLoad = []
+
+
+
+    
+
+
+    return
+    const shouldBeVisible = ['enterprise']
+
+
+
+    
+    if(selectedEnterprise !== null){
+        shouldBeVisible.push('activity')
+    }
+
+
+
+    if(selectedActivity !== null){
+        //get objectives
+    }
+
+    
+    
+    const cardsToUnload = []
+    const cardsToLoad = []
+
+    if(selectedEnterprise === null){
+        const loadedCardIDs = Object.keys(displays.cards)
+        loadedCardIDs.forEach(cardID => {
+            if(cardID !== 'enterprise'){
+                cardsToUnload.push(cardID)
+            }
+        })
+    } else {
+        
+    }
+
+    
 
     const shouldLoad = (cardTitle) => {
         if(cardTitle === 'activity'){
@@ -111,26 +173,19 @@ function updateCards (){
         }
     }
 
-    console.log(shouldLoad('activity'))
-    console.log(shouldUnLoad('activity'))
-    
+    if(shouldLoad('activity')){
+        displayOrchestration.loadCard('listBoxCard', 'activity')
+    } else if (shouldUnLoad('activity')){
+        displayOrchestration.unloadCard('activity')
+    } else {
 
-        
+    }
+
+
     //const selectedActivity = displays.cards['activity'].selectedItem()
     //cardsToLoad = getCardsToLoad(selectedEnterprise, selectedActivity)
-  
-        
-
-
-    
-
-
-    
-    
-
     //cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
     
-
     //const selectedEnterprise = displays.cards['enterprise'].selectedItem()
     
     /* if(selectedEnterprise === null){
@@ -141,16 +196,6 @@ function updateCards (){
         }
     }
 
-
-
-
-
-    
-    
-    
-    
-
-    
 
     console.log(applicableObjectives()) */
 }
@@ -341,7 +386,7 @@ class displays {
     static cards = {}
 
     static addCard(card){
-        this.cards[card.id] = card
+        this.cards[card.title] = card
     }
 
 }
@@ -357,18 +402,32 @@ class displayOrchestration {
         this.#selectionManager = new selectionManager
     }
 
-    static loadCard(type, title){
-        const card = this.#factory.createCard(type, title)
+    static loadCard(title){
+        const displayType = (title) => {
+            return title === 'enterprise' || title === 'activity' ? 'listBoxCard' : 'optionCard'
+        }
+        const card = this.#factory.createCard(displayType(title), title)
         displays.addCard(card)
         this.#cardControl.setup(card)
         this.#cardControl.load(card)
     }
 
-    static async unloadCard(cardID){
-        const card = displays.cards[cardID]
+    static updateCard(title){
+        const card = displays.cards[title]
+        if(card.constructor.type === 'optionCard'){
+            const position = cardPositioning.calculateStartingPosition('optionCard', title)
+
+        }
+    }
+
+    static async unloadCard(title){
+        const card = displays.cards[title]
+        if(title === 'pay vat'){
+            console.log(card)
+        }
         await this.#cardControl.unload(card)
         card.div.remove()
-        delete displays.cards[cardID]
+        delete displays.cards[title]
         return Promise.resolve()
     }
 
@@ -408,7 +467,6 @@ class displayOrchestration {
 
     static async itemClicked(item){
         const clickedCard = displays.cards[item.cardID]
-        console.log(clickedCard)
         this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
 
 /*         if(clickedCard.constructor.name === 'listBoxCard'){
@@ -566,9 +624,9 @@ class cardPositioning {
     static getCardToLeft(cardType, cardTitle){ 
         if(cardType === 'listBoxCard'){
             switch(cardTitle){
-                case 'Enterprise':
+                case 'enterprise':
                     return null;
-                case 'Activity':
+                case 'activity':
                     return displays.cards['enterprise']
             }
         } else if (cardType === 'optionCard'){
@@ -678,7 +736,9 @@ class cardFactory {
             .attr('id', card.id + 'Div')
             .style('position', 'absolute')
             .style('border-radius', '10px')
+            .style('background-color', '#F6F7F9')
             .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
+
 
 /*             .style('left', position.left + 'px')
             .style('top', position.top + 'px')
@@ -705,18 +765,14 @@ class cardControl {
         this.#loadItems(card)
         this.#setSize(card)
         this.#setPosition(card)
-        console.log(card)
     }
 
     #loadItems(card){
         card.items = this.handler.getCardData(card.title)
-        
-        //this.contentDynamics.renderItems(card)
     }
 
     #setSize(card){
         const dimensions = cardSizing.calculateStartingDimensions(card.constructor.name)
-        console.log(dimensions)
         this.dynamics.resize(card, dimensions, 0)
     }
 
@@ -728,8 +784,19 @@ class cardControl {
 
 
     async load(card){
-        this.dynamics.emerge(card, 300)
+
         this.contentDynamics.renderItems(card)
+
+        if(card.constructor.name === 'listBoxCard'){
+            this.dynamics.emerge(card, 300)
+        } else if (card.constructor.name === 'optionCard'){
+            this.dynamics.emerge(card)
+            const position = cardPositioning.calculateStartingPosition('optionCard', card.title)
+            this.dynamics.move(card, position, 300)
+        }
+        
+        
+        
 
 
         /* this.dynamics.expand(card)
@@ -748,8 +815,16 @@ class cardControl {
         
     }
 
-    unload(card){
+    async update(card){
+        const position = cardPositioning.calculateStartingPosition('optionCard', card.title)
+        await this.dynamics.move(card, position, 300)
+    }
+
+    async unload(card){
         const position = cardPositioning.calculateRemovalPosition(card)
+        card.items = []
+        await this.contentDynamics.renderItems(card)
+        await this.dynamics.sink(card, 300)
         return this.dynamics.move(card, position, 300)
     }
 
@@ -816,6 +891,15 @@ class cardDynamics {
             .ease(d3.easeCubicIn)
                 .style('background-color', 'white')
                 .style('box-shadow', '5px 5px 10px rgba(0, 0, 0, 0.3)')
+            .end()
+    }
+
+    sink(card, duration = 0){
+        return card.div.transition()
+            .duration(duration)
+            .ease(d3.easeCubicIn)
+                .style('background-color', '#F6F7F9')
+                .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
             .end()
     }
 
@@ -915,10 +999,14 @@ class cardContentDynamics {
                     transitions.push(t)
                     return t
                 },
-                exit => this.exitItems(exit, fn)
+                exit => {
+                    const t = this.exitItems(exit, fn)
+                    transitions.push(t)
+                    return t
+                }
             )
         
-        //return Promise.all(transitions.map(t => t.end()))
+        return Promise.all(transitions.map(t => t.end()))
 
     }
 
@@ -959,13 +1047,18 @@ class cardContentDynamics {
     }
 
     exitItems(selection, fn){
-        return selection.remove()
+        const text = selection.select('text')
+            .transition('textFadeOut')
+            .duration(300)
+                .style('fill', '#F6F7F9')
+            .on('end', () => {d3.select(this).remove()})
+        
+        return text
     }
 }
 
 class dataHandler{
     getOptionCardData(title){
-        console.log(title)
         const obligations = obligationData.getItems() 
         const items = []
                 items.push(obligations.find(item => item.label === 'obligation'))
