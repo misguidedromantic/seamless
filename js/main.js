@@ -16,7 +16,6 @@ function getLoadActions (requiredStates, requiredActions){
     function assignLoadKeepActions (shouldBeLoaded, requiredActions){
         for (let i = 0; i < shouldBeLoaded.length; i++){
             const title = shouldBeLoaded[i]
-            const prevTitle = shouldBeLoaded[i - 1]
             if(!cardLoaded(title)){
                 requiredActions.load.push(title)
             } else {
@@ -38,7 +37,7 @@ function getLoadActions (requiredStates, requiredActions){
 
 async function createAndUpdate(actions, shouldBeLoaded){
 
-    const promises = []
+    
 
     const getPrevTitle = (cardTitle, shouldBeLoaded) => {
         const i = shouldBeLoaded.findIndex(title => title === cardTitle)
@@ -127,6 +126,10 @@ async function updateCards (){
             applicableObjectives.forEach(objective => {
                 requiredStates.loaded.push(objective)
             })
+
+            if(applicableObjectives.length > 0){
+                requiredStates.loaded.push('mechanism')
+            }
         } 
     }
 
@@ -147,6 +150,7 @@ async function updateCards (){
     }
 
     getLoadActions(requiredLoadStates, requiredActions)
+
     
     await executeUnloadActions (requiredActions.unload)
     await executeLoadUpdateActions(requiredActions, requiredLoadStates.loaded)
@@ -186,6 +190,12 @@ class cardItem {
 class cardLabel extends cardItem {
     constructor(label){
         super(label, false)
+    }
+}
+
+class cardTag extends cardItem {
+    constructor(label){
+        super(label, true)
     }
 }
 
@@ -238,7 +248,7 @@ class displayOrchestration {
 
     static async createCard (title, prevCardTitle = null){
         const displayType = (title) => {
-            return title === 'enterprise' || title === 'activity' ? 'listBoxCard' : 'optionCard'
+            return title === 'enterprise' || title === 'activity' || title === 'mechanism' ? 'listBoxCard' : 'optionCard'
         }
         const card = this.#factory.createCard(displayType(title), title)
         this.setAdjacentCards(card, prevCardTitle)
@@ -259,6 +269,9 @@ class displayOrchestration {
         } else if (thisCard.title === 'activity'){
             thisCard.cardToLeft = 'enterprise'
             thisCard.cardAbove = null
+        } else if (thisCard.title === 'mechanism') {
+            thisCard.cardToLeft = 'enterprise'
+            thisCard.cardAbove = 'activity'
         } else {
             thisCard.cardToLeft = null
             thisCard.cardAbove = prevCard.constructor.name === 'optionCard' ? prevCard.title : 'enterprise'
@@ -285,13 +298,19 @@ class displayOrchestration {
 
 
     static mouseoverItem(item){
-        const isCardItem = (item) => item.constructor.name === 'cardItem'
-        if(isCardItem(item)){this.#cardControl.mouseoverItem(item)}
+        if(item.constructor.name === 'cardTag'){
+            this.#cardControl.mouseOverTagItem(item)
+        } else if (item.constructor.name === 'cardItem'){
+            this.#cardControl.mouseoverItem(item)
+        }
     }
 
     static mouseOffItem(item){
-        const isCardItem = (item) => item.constructor.name === 'cardItem'
-        if(isCardItem(item)){this.#cardControl.mouseOffItem(item)}
+        if(item.constructor.name === 'cardTag'){
+            this.#cardControl.mouseOffTagItem(item)
+        } else if (item.constructor.name === 'cardItem'){
+            this.#cardControl.mouseOffItem(item)
+        }
     }
 
     static itemClicked(item){
@@ -319,20 +338,11 @@ class cardControl {
     }
 
     #setItems(card){
-        const isObligationCard = (items) => {
-            return items.findIndex(item => item.label === 'obligation') !== -1
-        }
-
         card.items = this.handler.getCardData(card.title)
-        
-        if(isObligationCard(card.items)){
-
-        }
-        
     }
 
     #setSize(card){
-        const dimensions = cardSizing.calculateStartingDimensions(card.constructor.name)
+        const dimensions = cardSizing.calculateStartingDimensions(card)
         this.dynamics.resize(card, dimensions, 0)
     }
 
@@ -375,6 +385,14 @@ class cardControl {
         return Promise.resolve()
     }
 
+    mouseOverTagItem(tagItem){
+        this.updateRectFill(tagItem.id, 'gold')
+    }
+
+    mouseOffTagItem(tagItem){
+        this.updateRectFill(tagItem.id, 'grey')
+    }
+
     mouseoverItem(item){
         const selectable = (item)=> item.selectable
         const selected = (item) => item.selected
@@ -397,23 +415,13 @@ class cardControl {
         elem.select('text').style('font-weight', fontWeight)
     }
 
-
-    async renderSelectionChange(card){
-        this.contentDynamics.renderItems(card)
-        if(card.constructor.name === 'listBoxCard'){
-            await this.resizeOnSelectionChange(card)
-        }
+    updateRectFill(itemID, fill){
+        const elem = d3.select('#' + itemID)
+        elem.select('rect').attr('fill', fill)
     }
 
-    async resizeOnSelectionChange(card){
-        if(card.items.some(item => item.selected)){
-            await this.dynamics.contract(card, 300)
-        } else {
-            await this.dynamics.expand(card, 300)
-        }
 
-        return Promise.resolve()
-    }
+
 
     renderSelectabilityChange(card, selectableItemLabels){
 
@@ -469,10 +477,9 @@ class cardPositioning {
         if(card.constructor.name === 'listBoxCard'){
             pos.left = this.calculateLeft(card)
         } else if (card.constructor.name  === 'optionCard'){
-            pos.left = -600
+            pos.left = -350
         }
         
-
         pos.top = this.calculateTop(card)
         return pos
 
@@ -551,13 +558,26 @@ class cardPositioning {
 class cardSizing {
     static padding = 15
     
-    static calculateStartingDimensions(cardType){
-        const itemCount = cardType === 'listBoxCard' ? 6 : 2
+    static calculateStartingDimensions(card){
+
+        let itemCount = undefined
+
+        if(card.title === 'mechanism'){
+            console.log(card.items.length)
+            itemCount = card.items.length
+        } else if (card.constructor.name === 'listBoxCard') {
+            itemCount = 6
+        } else {
+            itemCount = 2
+        }
+        
         return {
             width: 300,
             height: this.calculateCardHeight(itemCount)
         }
     }
+
+    static calculateUpdateDimensions(){}
     
     static getWidth(card){
         try{
@@ -629,7 +649,6 @@ class cardFactory {
         }
     }
 
-
     #addDiv(card){
         card.div = d3.select('body')
             .append('div')
@@ -646,8 +665,6 @@ class cardFactory {
     }
 
 }
-
-
 
 class cardDynamics {
 
@@ -677,12 +694,24 @@ class cardDynamics {
             .end()
     }
 
-    resize(card, dimensions, duration){
-        return card.div.transition()
+    async resize(card, dimensions, duration){
+        this.#resizeSvg(card.svg, dimensions)
+        return this.#resizeDiv(card.div, dimensions, duration)
+    }
+
+    #resizeDiv(div, dimensions, duration){
+        return div.transition()
             .duration(duration)
                 .style('width', dimensions.width + 'px')
                 .style('height', dimensions.height + 'px')
             .end()
+    }
+
+    #resizeSvg(svg, dimensions, duration = 0){
+        return svg.transition()
+            .duration(duration)
+                .attr('width', dimensions.width)
+                .attr('height', dimensions.height)
     }
 
     setWidth(card){
@@ -692,7 +721,7 @@ class cardDynamics {
     }
 
     setHeight(card){
-        const height = cardSizing.calculateCardWidth(card.id)
+        const height = cardSizing.calculateCardHeight(card.items.length)
         card.div.style('height', height + 'px')
         card.svg.style('height', height)
     }
@@ -789,11 +818,18 @@ class cardContentDynamics {
             .on('mouseout', (event, d) => cardEvents.onItemOff(event, d))
             .on('click', (event, d) => cardEvents.onItemClick(event, d))
 
-        const text = groups.append('text')
+        const notTags = groups.filter(elem => elem.constructor.name !== 'cardTag')
+        const text = notTags.append('text')
             .text(d => d.label)
             .style('fill', 'white')
             .attr('dx', 0)
             .attr('dy', cardItem.fontSize)
+
+        const tags = groups.filter(elem => elem.constructor.name === 'cardTag')
+        tags.append('rect')
+            .attr('width', 15)
+            .attr('height', 15)
+            .attr('fill', 'grey')
             
         return text.transition('textAppearing')
             .ease(d3.easeCircleIn) 
@@ -823,36 +859,6 @@ class cardContentDynamics {
     }
 }
 
-class dataHandler{
-    
-    getOptionCardData(title){
-        const obligations = obligationData.getItems()
-        const thisObligation = obligations.find(item => item.label === title)
-        console.log(thisObligation)
-
-        const mechanisms = mechanismData.getApplicableMechanisms(thisObligation.label)
-        console.log(mechanisms)
-        
-        const items = []
-            items.push(obligations.find(item => item.label === 'obligation'))
-            items.push(thisObligation)
-
-        
-        return items
-    }
-
-
-    getCardData(title){
-        switch(title){
-            case 'enterprise':
-                return enterpriseData.getItems()
-            case 'activity':
-                return activityData.getItems()
-            default:
-                return this.getOptionCardData(title)
-        }
-    }
-}
 
 class cardItemStyling {
     constructor(items){
@@ -864,7 +870,9 @@ class cardItemStyling {
 
         if(d.constructor.name === 'cardLabel'){
             return '#336BF0'
-        }  else if (selectedItemIndex > 0){
+        }  else if (d.constructor.name === 'cardTag') {
+            return 'white'
+        } else if (selectedItemIndex > 0){
             return d.selected ? '#131C3E' : 'white'
         } else if (d.selectable) {
             return '#131C3E'
@@ -894,13 +902,17 @@ class cardItemPositioning {
     }
 
     getTranslate(d, i){
-        const x = this.getPosX(d)
+        const x = this.getPosX(d, i)
         const y = this.getPosY(d, i)
         return d3Helper.getTranslateString(x, y)
     }
 
-    getPosX(d){
+    getPosX(d, i){
         const selectedIndex = this.getSelectedItemIndex()
+
+        if(d.constructor.name === 'cardTag'){
+            return 300 - ((i - 2) * 20) - cardSizing.padding * 2
+        }
 
         if(selectedIndex === -1){
             return cardSizing.padding
@@ -915,8 +927,9 @@ class cardItemPositioning {
     }
 
     getListPosition(d, i){
-        
-        if (d.constructor.name === 'cardLabel'){
+        if(d.constructor.name === 'cardTag'){
+            return 0
+        } else if (d.constructor.name === 'cardLabel'){
             return i
         } else if (d.selected){
             return 1
@@ -929,6 +942,39 @@ class cardItemPositioning {
         return this.items.findIndex(item => item.selected === true)
     }
 
+}
+
+class dataHandler{
+    
+    getOptionCardData(title){
+        const obligations = obligationData.getItems()
+        const thisObligation = obligations.find(item => item.label === title)
+        const mechanisms = mechanismData.getApplicableMechanisms(thisObligation.label)
+        
+        const items = []
+            items.push(obligations.find(item => item.label === 'obligation'))
+            items.push(thisObligation)
+
+        mechanisms.forEach(mechanism => {
+            items.push(new cardTag(mechanism))
+        })
+
+        return items
+    }
+
+
+    getCardData(title){
+        switch(title){
+            case 'enterprise':
+                return enterpriseData.getItems()
+            case 'activity':
+                return activityData.getItems()
+            case 'mechanism':
+                return mechanismData.getItems()
+            default:
+                return this.getOptionCardData(title)
+        }
+    }
 }
 
 class enterpriseData {  
