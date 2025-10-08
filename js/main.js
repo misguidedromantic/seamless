@@ -7,6 +7,101 @@ window.onload = async function(){
     displayOrchestration.loadCard(enterpriseCard)
 }
 
+class pageOrchestrator {
+
+    static #cardsOrchestrator = {}
+
+    static setup(){
+        this.#cardsOrchestrator = new cardsOrchestrator
+    }
+
+    static loadDefaultView(){
+        this.#cardsOrchestrator.loadDefaultCards()
+    }
+}
+
+class cardsOrchestrator {
+    #cards = {}
+    #stateManager = []
+    #layoutManager = {}
+    #factory = {}
+
+    constructor(){
+        this.#stateManager = new cardsStateManager
+        this.#layoutManager = new cardsLayoutManager
+        this.#factory = new cardFactory
+    }
+
+    loadDefaultCards(){
+        const titles = this.#stateManager.getVisibleCardTitlesForState('default')
+        this.#createCards(titles)
+    }
+
+    #createCards(titles){
+        for (const title of titles) {
+            const type = this.#stateManager.getCardTypeForTitle(title)
+            this.#cards[title] = this.#factory.createCard(type, title)
+        }
+    }
+
+}
+
+class cardsLayoutManager {
+
+}
+
+class cardsStateManager {
+    getVisibleCardTitlesForState(state){
+        if(state === 'default'){
+            return ['enterprise']
+        }
+    }
+
+    getCardTypeForTitle(title){
+        switch(title){
+            case 'enterprise':
+                return 'listBoxCard'
+        }
+    }
+}
+
+class cardFactory {
+
+    createCard(type, title){
+        const card = this.#createObject(type, title)
+        this.#addDiv(card)
+        this.#addSvg(card)
+        return card
+    }
+
+    #createObject(type, title){
+        switch(type){
+            case 'listBoxCard':
+                return new listBoxCard(title)
+            case 'optionCard':
+                return new optionCard(title)
+            default:
+                return new card(type, title)
+        }
+    }
+
+    #addDiv(card){
+        card.div = d3.select('body')
+            .append('div')
+            .attr('id', card.id + 'Div')
+            .style('position', 'absolute')
+            .style('border-radius', '10px')
+            .style('background-color', '#F6F7F9')
+            .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
+    }
+
+    #addSvg(card){
+        card.svg = card.div.append('svg')
+            .attr('id', card.id + 'Svg')
+    }
+
+}
+
 function getLoadActions (requiredStates, requiredActions){
     const cardLoaded = (cardTitle) => {
         const loadedCard = displays.cards[cardTitle]
@@ -172,30 +267,37 @@ class cardItem {
 
     static fontSize = 12
 
-    constructor(label, selectable = true){
+    constructor(label, parentCardID, selectable = true){
         this.label = label
+        this.parentCardID = parentCardID
         this.selectable = selectable
         this.setID()
     }
 
     setID(){
-        this.id = this.constructor.name === 'cardLabel' ? 'label' : this.label.replaceAll(' ','')
+        switch(this.constructor.name){
+            case 'cardLabel':
+                this.id = this.parentCardID + 'label'
+                break;
+            case 'cardTag':
+                this.id = this.parentCardID + this.label.replaceAll(' ','')
+                break;
+            default:
+                this.id = this.label.replaceAll(' ','')
+        } 
     }
 
-    setParentSelector(cardLabel){
-        this.parentSelector = cardLabel
-    }
 }
 
 class cardLabel extends cardItem {
-    constructor(label){
-        super(label, false)
+    constructor(label, parentCardID){
+        super(label, parentCardID, false)
     }
 }
 
 class cardTag extends cardItem {
-    constructor(label){
-        super(label, true)
+    constructor(label, parentCardID){
+        super(label, parentCardID, true)
     }
 }
 
@@ -629,42 +731,7 @@ class cardSizing {
 
 }
 
-class cardFactory {
 
-    createCard(type, title){
-        const card = this.#createObject(type, title)
-        this.#addDiv(card)
-        this.#addSvg(card)
-        return card
-    }
-
-    #createObject(type, title){
-        switch(type){
-            case 'listBoxCard':
-                return new listBoxCard(title)
-            case 'optionCard':
-                return new optionCard(title)
-            default:
-                return new card(type, title)
-        }
-    }
-
-    #addDiv(card){
-        card.div = d3.select('body')
-            .append('div')
-            .attr('id', card.id + 'Div')
-            .style('position', 'absolute')
-            .style('border-radius', '10px')
-            .style('background-color', '#F6F7F9')
-            .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
-    }
-
-    #addSvg(card){
-        card.svg = card.div.append('svg')
-            .attr('id', card.id + 'Svg')
-    }
-
-}
 
 class cardDynamics {
 
