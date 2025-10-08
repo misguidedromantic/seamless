@@ -7,7 +7,7 @@ window.onload = async function(){
     displayOrchestration.loadCard(enterpriseCard)
 }
 
- function getLoadActions (requiredStates, requiredActions){
+function getLoadActions (requiredStates, requiredActions){
     const cardLoaded = (cardTitle) => {
         const loadedCard = displays.cards[cardTitle]
         return loadedCard === undefined ? false : true
@@ -164,7 +164,6 @@ class card {
 
 }
 
-
 class cardItem {
 
     static fontSize = 12
@@ -192,16 +191,6 @@ class cardLabel extends cardItem {
 
 class selectionManager {
 
-    getSelectedItemLabel(items){
-        const selectedItem = this.getSelectedItem(items)
-        try{return selectedItem.label}
-        catch{return undefined}
-    }
-
-    getSelectedItem(items){
-        return items.find(item => item.selected === true)
-    }
-
     updateItemSelection(itemID, itemsOnCard){
         const selectable = (item)=> item.selectable
         const idMatch = (item)=> item.id === itemID
@@ -209,40 +198,7 @@ class selectionManager {
             item.selected = selectable(item) && idMatch(item) && !item.selected ? true : false
         })
     }
-
-    getSelectableItems(cardID){
-
-        let selectedEnterprise = null
-        let selectedActivity = null
-
-        switch(cardID){
-            case 'activity':
-                selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
-                return activityData.getSelectableItems(selectedEnterprise)
-                
-            case 'enterprise':
-                return null
-
-            case 'obligations': 
-                selectedEnterprise = this.getSelectedItemLabel(displays.cards['enterprise'].items)
-                selectedActivity = this.getSelectedItemLabel(displays.cards['activity'].items)
-                return obligationData.getSelectableItems(selectedEnterprise, selectedActivity)
-        }
-    }
-
-    getSelectionState(){
-        const cardArray = Object.values(displays.cards)
-        let selectionsArray = {}
-        cardArray.forEach(card => {
-            selectionsArray[card.id] = this.getSelectedItemLabel(card.items)
-        })
-        return selectionsArray
-    }
-
-
 }
-
-
 
 class cardEvents {
 
@@ -348,6 +304,132 @@ class displayOrchestration {
     }
 }
 
+class cardControl {
+
+    constructor(){
+        this.handler = new dataHandler ()
+        this.dynamics = new cardDynamics ()
+        this.contentDynamics = new cardContentDynamics ()
+    }
+
+    setup(card){
+        this.#setItems(card)
+        this.#setSize(card)
+        return this.#setPosition(card)
+    }
+
+    #setItems(card){
+        const isObligationCard = (items) => {
+            return items.findIndex(item => item.label === 'obligation') !== -1
+        }
+
+        card.items = this.handler.getCardData(card.title)
+        
+        if(isObligationCard(card.items)){
+
+        }
+        
+    }
+
+    #setSize(card){
+        const dimensions = cardSizing.calculateStartingDimensions(card.constructor.name)
+        this.dynamics.resize(card, dimensions, 0)
+    }
+
+    #setPosition(card){
+        const coordinates = cardPositioning.calculatePreEntryPosition(card)
+        return this.dynamics.move(card, coordinates, 0)
+
+    }
+
+    async load(card){
+        this.contentDynamics.renderItems(card, 150)
+
+        if(card.constructor.name === 'listBoxCard'){
+            this.dynamics.emerge(card, 300)
+        } else if (card.constructor.name === 'optionCard'){
+            this.dynamics.emerge(card)
+            const position = cardPositioning.calculateStartingPosition(card)
+            await this.dynamics.move(card, position, 150)
+        }
+
+        return Promise.resolve()
+
+    }
+
+    update(card){
+        const position = cardPositioning.calculateStartingPosition(card)
+        return this.dynamics.move(card, position, 200)
+    }
+
+    async unload(card){
+        const position = cardPositioning.calculateRemovalPosition(card)
+        card.items = []
+        this.contentDynamics.renderItems(card, 300)
+        if(card.constructor.name === 'listBoxCard'){
+            await this.dynamics.sink(card, 300)
+        } else if (card.constructor.name === 'optionCard'){
+            await this.dynamics.move(card, position, 100)
+        }
+        
+        return Promise.resolve()
+    }
+
+    mouseoverItem(item){
+        const selectable = (item)=> item.selectable
+        const selected = (item) => item.selected
+
+        if(selectable(item) && !selected(item)){
+            this.updateFontWeight(item.id, 'bold')
+        } 
+    }
+
+    mouseOffItem(item){
+        const selectable = (item)=> item.selectable
+        const selected = (item) => item.selected
+        if(selectable(item) && !selected(item)){
+            this.updateFontWeight(item.id, 'normal')
+        } 
+    }
+
+    updateFontWeight(itemID, fontWeight){
+        const elem = d3.select('#' + itemID)
+        elem.select('text').style('font-weight', fontWeight)
+    }
+
+
+    async renderSelectionChange(card){
+        this.contentDynamics.renderItems(card)
+        if(card.constructor.name === 'listBoxCard'){
+            await this.resizeOnSelectionChange(card)
+        }
+    }
+
+    async resizeOnSelectionChange(card){
+        if(card.items.some(item => item.selected)){
+            await this.dynamics.contract(card, 300)
+        } else {
+            await this.dynamics.expand(card, 300)
+        }
+
+        return Promise.resolve()
+    }
+
+    renderSelectabilityChange(card, selectableItemLabels){
+
+        card.items.forEach(item => {
+            if(selectableItemLabels.includes(item.label)){
+                item.selectable = true
+            } else {
+                item.selectable = false
+            }
+        })
+
+        this.contentDynamics.renderItems(card)
+    }
+
+}
+
 class listBoxCard {
     maxVisibleItems = 6
     left = 0
@@ -363,6 +445,7 @@ class listBoxCard {
     }
 
 }
+
 class optionCard {
     maxVisibleItems = 2
     constructor(title){
@@ -564,124 +647,7 @@ class cardFactory {
 
 }
 
-class cardControl {
 
-    constructor(){
-        this.handler = new dataHandler ()
-        this.dynamics = new cardDynamics ()
-        this.contentDynamics = new cardContentDynamics ()
-    }
-
-    setup(card){
-        this.#setItems(card)
-        this.#setSize(card)
-        return this.#setPosition(card)
-    }
-
-    #setItems(card){
-        card.items = this.handler.getCardData(card.title)
-    }
-
-    #setSize(card){
-        const dimensions = cardSizing.calculateStartingDimensions(card.constructor.name)
-        this.dynamics.resize(card, dimensions, 0)
-    }
-
-    #setPosition(card){
-        const coordinates = cardPositioning.calculatePreEntryPosition(card)
-        return this.dynamics.move(card, coordinates, 0)
-
-    }
-
-
-
-    async load(card){
-        this.contentDynamics.renderItems(card, 150)
-
-        if(card.constructor.name === 'listBoxCard'){
-            this.dynamics.emerge(card, 300)
-        } else if (card.constructor.name === 'optionCard'){
-            this.dynamics.emerge(card)
-            const position = cardPositioning.calculateStartingPosition(card)
-            await this.dynamics.move(card, position, 150)
-        }
-
-        return Promise.resolve()
-
-    }
-
-    update(card){
-        const position = cardPositioning.calculateStartingPosition(card)
-        return this.dynamics.move(card, position, 200)
-    }
-
-    async unload(card){
-        const position = cardPositioning.calculateRemovalPosition(card)
-        card.items = []
-        this.contentDynamics.renderItems(card, 300)
-        if(card.constructor.name === 'listBoxCard'){
-            await this.dynamics.sink(card, 300)
-        } else if (card.constructor.name === 'optionCard'){
-            await this.dynamics.move(card, position, 100)
-        }
-        
-        return Promise.resolve()
-    }
-
-    mouseoverItem(item){
-        const selectable = (item)=> item.selectable
-        const selected = (item) => item.selected
-
-        if(selectable(item) && !selected(item)){
-            this.updateFontWeight(item.id, 'bold')
-        } 
-    }
-
-    mouseOffItem(item){
-        const selectable = (item)=> item.selectable
-        const selected = (item) => item.selected
-        if(selectable(item) && !selected(item)){
-            this.updateFontWeight(item.id, 'normal')
-        } 
-    }
-
-    updateFontWeight(itemID, fontWeight){
-        const elem = d3.select('#' + itemID)
-        elem.select('text').style('font-weight', fontWeight)
-    }
-
-
-    async renderSelectionChange(card){
-        this.contentDynamics.renderItems(card)
-        if(card.constructor.name === 'listBoxCard'){
-            await this.resizeOnSelectionChange(card)
-        }
-    }
-
-    async resizeOnSelectionChange(card){
-        if(card.items.some(item => item.selected)){
-            await this.dynamics.contract(card, 300)
-        } else {
-            await this.dynamics.expand(card, 300)
-        }
-
-        return Promise.resolve()
-    }
-
-    renderSelectabilityChange(card, selectableItemLabels){
-
-        card.items.forEach(item => {
-            if(selectableItemLabels.includes(item.label)){
-                item.selectable = true
-            } else {
-                item.selectable = false
-            }
-        })
-
-        this.contentDynamics.renderItems(card)
-    }
-
-}
 
 class cardDynamics {
 
@@ -858,17 +824,22 @@ class cardContentDynamics {
 }
 
 class dataHandler{
+    
     getOptionCardData(title){
-        const obligations = obligationData.getItems() 
+        const obligations = obligationData.getItems()
+        const thisObligation = obligations.find(item => item.label === title)
+        console.log(thisObligation)
+
+        const mechanisms = mechanismData.getApplicableMechanisms(thisObligation.label)
+        console.log(mechanisms)
+        
         const items = []
-                items.push(obligations.find(item => item.label === 'obligation'))
-                items.push(obligations.find(item => item.label === title))
-                return items
+            items.push(obligations.find(item => item.label === 'obligation'))
+            items.push(thisObligation)
 
+        
+        return items
     }
-
-
-
 
 
     getCardData(title){
@@ -882,7 +853,6 @@ class dataHandler{
         }
     }
 }
-
 
 class cardItemStyling {
     constructor(items){
@@ -916,7 +886,6 @@ class cardItemStyling {
     }
 
 }
-
 
 class cardItemPositioning {
 
@@ -961,8 +930,6 @@ class cardItemPositioning {
     }
 
 }
-
-
 
 class enterpriseData {  
     static getItems(){
@@ -1206,15 +1173,32 @@ class mechanismData {
     static getApplicableMechanisms(objectiveDescription){
         const mechanisms = []
         switch(objectiveDescription){
+            case 'calculate payroll tax':
+                mechanisms.push('manual calculation')
+            case 'collect payroll tax':
+            case 'report payroll tax':
+            case 'pay payroll tax':
+                mechanisms.push('payroll software')
+                break;
+            
+            case 'calculate vat':
+                mechanisms.push('manual calculation')
+            case 'report vat':
+                mechanisms.push('business accounting software')
+            case 'pay vat':
+            case 'collect vat':
+                mechanisms.push('point of sale system')
+                break;
+            
+            case 'register for income tax':
+                mechanisms.push('government business registry')
+            case 'record keep for income tax':
             case 'calculate income tax':
             case 'report income tax': 
+                mechanisms.push('business accounting software')
             case 'pay income tax':
                 mechanisms.push('entreprenuers bank account')
                 break;
-            case 'register for income tax':
-                mechanisms.push('entreprenuers bank account')
-                mechanisms.push('government business registry')
-            break;
         }
         return mechanisms
     }
@@ -1224,6 +1208,12 @@ class mechanismData {
             new cardLabel ('mechanism'),
             new cardItem ('entreprenuers bank account'),
             new cardItem ('government business registry'),
+            new cardItem ('business accounting software'),
+            new cardItem ('manual calculation'),
+            new cardItem ('government lodgment portal'),
+            new cardItem ('manual electronic funds transfer'),
+            new cardItem ('payroll software'),
+            new cardItem ('point of sale system')
         ]
     }
 
@@ -1245,9 +1235,6 @@ class mechanismData {
     }
 
 }
-
-
-
 
 class d3Helper {
     static getTranslateString(x, y){
