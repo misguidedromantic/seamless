@@ -1,203 +1,157 @@
 const gRatio = 1.618
 
-window.onload = function(){
+window.onload = async function(){
     displayOrchestration.setup()
-    displayOrchestration.loadCard('enterprise')
+    await displayOrchestration.createCard('enterprise')
+    const enterpriseCard = displays.cards['enterprise']
+    displayOrchestration.loadCard(enterpriseCard)
 }
 
-function getCardsToUnload(selectedEnterprise, selectedActivity, applicableObjectives){
-
-    const shouldUnload = (cardTitle) => {
-        switch(cardTitle){
-            case 'enterprise':
-                return false
-            case 'activity':
-                return selectedEnterprise === null
-            default:
-                if(selectedEnterprise === null || selectedActivity === null){
-                    return true
-                } else if (applicableObjectives.includes(cardTitle)) {
-                    return false //more criteria to add
-                } else {
-                    return true
-                } 
-                
-        }
+ function getLoadActions (requiredStates, requiredActions){
+    const cardLoaded = (cardTitle) => {
+        const loadedCard = displays.cards[cardTitle]
+        return loadedCard === undefined ? false : true
     }
-    
-    const loadedCards = Object.keys(displays.cards)
-    const cardsToUnload = []
-    
-    for(i = 0; i < loadedCards.length; i++){
-        const cardTitle = loadedCards[i]
-        if(shouldUnload(cardTitle)){
-            cardsToUnload.push(cardTitle)
+
+    function assignLoadKeepActions (shouldBeLoaded, requiredActions){
+        for (let i = 0; i < shouldBeLoaded.length; i++){
+            const title = shouldBeLoaded[i]
+            const prevTitle = shouldBeLoaded[i - 1]
+            if(!cardLoaded(title)){
+                requiredActions.load.push(title)
+            } else {
+                requiredActions.update.push(title)
+            }
         }
     }
 
-    return cardsToUnload
-    
-}
-
-function getCardsToLoad(selectedEnterprise, selectedActivity){
-    if(selectedEnterprise === null){
-        return null    
+    function assignUnloadActions (shouldntBeLoaded, requiredActions){
+        for (let i = 0; i < shouldntBeLoaded.length; i++){
+            requiredActions.unload.push(shouldntBeLoaded[i])
+        }
     }
 
-    if(selectedActivity === null){
-        return displays.cards['activity'] === undefined ? ['activity'] : null
+    assignLoadKeepActions(requiredStates.loaded, requiredActions)
+    assignUnloadActions(requiredStates.unloaded, requiredActions)
+
+}
+
+async function createAndUpdate(actions, shouldBeLoaded){
+
+    const promises = []
+
+    const getPrevTitle = (cardTitle, shouldBeLoaded) => {
+        const i = shouldBeLoaded.findIndex(title => title === cardTitle)
+        return shouldBeLoaded[i - 1]
     }
 
+    for (let i = 0; i < shouldBeLoaded.length; i++){
+        const title = shouldBeLoaded[i]
+        const prevTitle = getPrevTitle(title, shouldBeLoaded)
+        
+        if(actions.load.includes(title)){
+            await displayOrchestration.createCard(title, prevTitle)
+        } else if (actions.update.includes(title)) {
+            await displayOrchestration.updateCard(title, prevTitle)
+        }
+    }
 
-    
-    
-     
+    return Promise.resolve()
+
 }
- 
 
-function syncCardVisbilityWithSelection(){
+async function finaliseLoad(cardsToLoad){
+    for (let i = 0; i < cardsToLoad.length; i++){
+        const cardToLoad = displays.cards[cardsToLoad[i]]
+        await displayOrchestration.loadCard(cardToLoad)
+    }
 
+    return Promise.resolve()
 }
 
-function updateCards (){
+async function executeLoadUpdateActions (actions, shouldBeLoaded){
+    await createAndUpdate(actions, shouldBeLoaded)
+    await finaliseLoad(actions.load)
+    return Promise.resolve()
+}
+
+async function executeUnloadActions (cardsToUnload){
+    for (let i = 0; i < cardsToUnload.length; i++){
+        const title = cardsToUnload[i]
+        await displayOrchestration.unloadCard(title)
+        
+    }
+
+    return Promise.resolve()
+}
+
+async function updateCards (){
 
     const cardLoaded = (cardTitle) => {
         const loadedCard = displays.cards[cardTitle]
         return loadedCard === undefined ? false : true
     }
 
-    const loaded = Object.keys(displays.cards)
-    const selectedEnterprise = displays.cards['enterprise'].selectedItem()
-    let enterpriseSet = {}
-    let selectedActivity = undefined
-    
-    
-    let activityObjectives = [] 
-    
-    let shouldBes = []
-    let shouldntBes = []
+    const requiredLoadStates = {
+        loaded: [],
+        unloaded: []
+    }
 
-    loaded.forEach(cardTitle => {
-        if(cardTitle === 'enterprise'){
-            if(selectedEnterprise === null){
-                shouldntBes.push('activity')
-            } else {
-                shouldBes.push('activity')
-                const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
-                enterpriseSet = new Set (enterpriseObjectives)
-            }
-        } else if (cardTitle === 'activity'){
-            selectedActivity = displays.cards['activity'].selectedItem()
-            if(selectedActivity !== null){
-                activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
-                const applicableObjectives = activityObjectives.filter(element => enterpriseSet.has(element))
-                shouldBes = [...shouldBes, ...applicableObjectives]
-            }
-        } else {
-            if(selectedEnterprise === null || selectedActivity === null){
-                shouldntBes.push(cardTitle)
-            } else {
-                const nonApplicableObjectives = activityObjectives.filter(element => !enterpriseSet.has(element))
-                shouldntBes = [...shouldntBes, nonApplicableObjectives]
-            }
-        }
-    })
-
-    shouldBes.forEach(cardTitle => {
-        if(cardTitle === 'pay vat'){
-            console.log(cardLoaded(cardTitle))
-        }
-
-        if(!cardLoaded(cardTitle)){
-            displayOrchestration.loadCard(cardTitle)        
-        } else {
-            displayOrchestration.updateCard(cardTitle)
-        }
-    })
-
-    shouldntBes.forEach(cardTitle => {
-        displayOrchestration.unloadCard(cardTitle) 
-    })
-
-    const toUnload = []
-    const toLoad = []
-
-
-
-    
-
-
-    return
-    const shouldBeVisible = ['enterprise']
-
-
-
-    
-    if(selectedEnterprise !== null){
-        shouldBeVisible.push('activity')
+    const requiredActions = {
+        load: [],
+        update: [],
+        unload: []
     }
 
 
-
-    if(selectedActivity !== null){
-        //get objectives
+    function getRequiredStatesFromEnterpriseCard(requiredStates){
+        requiredStates.loaded.push('enterprise')
+        const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+        selectedEnterprise === null ? requiredStates.unloaded.push('activity') : requiredStates.loaded.push('activity')
     }
 
-    
-    
-    const cardsToUnload = []
-    const cardsToLoad = []
+    function getRequiredStatesFromActivityCard(requiredStates){
 
-    if(selectedEnterprise === null){
-        const loadedCardIDs = Object.keys(displays.cards)
-        loadedCardIDs.forEach(cardID => {
-            if(cardID !== 'enterprise'){
-                cardsToUnload.push(cardID)
+        function getApplicableObjectivies(selectedEnterprise, selectedActivity){
+            const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
+            const activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
+            const enterpriseSet = new Set (enterpriseObjectives)
+            return activityObjectives.filter(element => enterpriseSet.has(element))
+        }
+
+        const selectedEnterprise = displays.cards['enterprise'].selectedItem()
+        const selectedActivity = displays.cards['activity'].selectedItem()
+        
+        if(selectedActivity !== null){
+            const applicableObjectives = getApplicableObjectivies(selectedEnterprise, selectedActivity)
+            applicableObjectives.forEach(objective => {
+                requiredStates.loaded.push(objective)
+            })
+        } 
+    }
+
+    function getRequiredObjectiveCardStates(requiredStates){
+        const loadedObjectives = Object.keys(displays.cards).filter(title => title !== 'enterprise' && title !== 'activity')
+        loadedObjectives.forEach(objective => {
+            if(!requiredStates.loaded.includes(objective)){
+                requiredStates.unloaded.push(objective)
             }
         })
-    } else {
-        
     }
 
+    getRequiredStatesFromEnterpriseCard(requiredLoadStates)
+
+    if(cardLoaded('activity')){
+        getRequiredStatesFromActivityCard(requiredLoadStates)
+        getRequiredObjectiveCardStates(requiredLoadStates)
+    }
+
+    getLoadActions(requiredLoadStates, requiredActions)
     
-
-    const shouldLoad = (cardTitle) => {
-        if(cardTitle === 'activity'){
-            return !cardLoaded(cardTitle) && selectedEnterprise !== null  
-        }
-    }
-
-    const shouldUnLoad = (cardTitle) => {
-        if(cardTitle === 'activity'){
-            return cardLoaded(cardTitle) && selectedEnterprise == null  
-        }
-    }
-
-    if(shouldLoad('activity')){
-        displayOrchestration.loadCard('listBoxCard', 'activity')
-    } else if (shouldUnLoad('activity')){
-        displayOrchestration.unloadCard('activity')
-    } else {
-
-    }
+    await executeUnloadActions (requiredActions.unload)
+    await executeLoadUpdateActions(requiredActions, requiredLoadStates.loaded)
 
 
-    //const selectedActivity = displays.cards['activity'].selectedItem()
-    //cardsToLoad = getCardsToLoad(selectedEnterprise, selectedActivity)
-    //cardsToUnload = getCardsToUnload(selectedEnterprise, selectedActivity)
-    
-    //const selectedEnterprise = displays.cards['enterprise'].selectedItem()
-    
-    /* if(selectedEnterprise === null){
-        for (const card in displays.cards){
-            if(card !== 'enterprise'){
-                cardsToUnload.push(card)
-            }
-        }
-    }
-
-
-    console.log(applicableObjectives()) */
 }
 
 class card {
@@ -210,82 +164,6 @@ class card {
 
 }
 
-
-
-class orchestration {
-
-    static selectionChange(){
-        const cardsWithSelection = () => {
-            const cards = []
-            const cardsToCheck = Object.values(displays.cards)
-            cardsToCheck.forEach(card => {
-                if(this.getSelectedItem(card.items) !== null){
-                    cards.push(card)
-                }
-            })
-            return cards
-        }
-
-
-        const obligationsLoadable = () => {
-            const checkIDs = ['enterprise', 'activity']
-            for (let i = 0; i < checkIDs.length; i++){
-                const cardToCheck = displays.cards[checkIDs[i]]
-                if(this.getSelectedItem(cardToCheck.items) === null){
-                    return false
-                }
-            } 
-
-            return true
-        }
-
-        //renderItemSelectionChange
-        //renderItemSelectableChanges
-        //renderAvailableCardChanges
-    
-    }
-
-    static updateData(){}
-    static updateDisplays(){}
-
-    static getSelectedItem(items){
-        const selectedItem = items.find(item => item.selected)
-        if(selectedItem === undefined){
-            return null
-        }
-        return selectedItem
-    }
-
-
-}
-
-class enterprise {
-
-}
-class activity {}
-
-class objective {
-    constructor(description){
-        this.description = description
-        this.id = description.replaceAll(' ','')
-    }
-
-
-    cardData(){
-        return [
-            
-        ]
-    }
-}
-
-class obligation extends objective {
-    constructor(description){
-        super(description)
-    }
-}
-
-
-class mechanism {}
 
 class cardItem {
 
@@ -402,58 +280,53 @@ class displayOrchestration {
         this.#selectionManager = new selectionManager
     }
 
-    static loadCard(title){
+    static async createCard (title, prevCardTitle = null){
         const displayType = (title) => {
             return title === 'enterprise' || title === 'activity' ? 'listBoxCard' : 'optionCard'
         }
         const card = this.#factory.createCard(displayType(title), title)
+        this.setAdjacentCards(card, prevCardTitle)
         displays.addCard(card)
-        this.#cardControl.setup(card)
-        this.#cardControl.load(card)
+        return this.#cardControl.setup(card)
     }
 
-    static updateCard(title){
-        const card = displays.cards[title]
-        if(card.constructor.type === 'optionCard'){
-            const position = cardPositioning.calculateStartingPosition('optionCard', title)
+    static async loadCard(card){ 
+        await this.#cardControl.load(card)
+        return Promise.resolve()
+    }
 
+    static setAdjacentCards(thisCard, prevCardTitle){
+        const prevCard = displays.cards[prevCardTitle]
+        if(thisCard.title === 'enterprise'){
+            thisCard.cardToLeft = null
+            thisCard.cardAbove = null
+        } else if (thisCard.title === 'activity'){
+            thisCard.cardToLeft = 'enterprise'
+            thisCard.cardAbove = null
+        } else {
+            thisCard.cardToLeft = null
+            thisCard.cardAbove = prevCard.constructor.name === 'optionCard' ? prevCard.title : 'enterprise'
         }
+    }
+
+    static async updateCard(title, prevCardTitle){
+        const card = displays.cards[title]
+        this.setAdjacentCards(card, prevCardTitle)
+
+        if(card.constructor.name === 'optionCard'){
+            await this.#cardControl.update(card)
+        }
+        return Promise.resolve()
     }
 
     static async unloadCard(title){
         const card = displays.cards[title]
-        if(title === 'pay vat'){
-            console.log(card)
-        }
         await this.#cardControl.unload(card)
         card.div.remove()
         delete displays.cards[title]
         return Promise.resolve()
     }
 
-    static createCards(cardType, cardTitles){
-        const created = []
-        
-        for(let i = 0; i < cardTitles.length; i++){
-            const position = cardPositioning.calculatePreEntryPosition(cardType, cardTitles[i])
-            const dimensions = cardSizing.calculateStartingDimensions()
-            const card = this.#factory.createCard(cardType, cardTitles[i], position, dimensions)
-            created.push(card)
-            displays.addCard(card)
-        }
-
-        return created
-    }
-
-    static async loadCards(cardsToLoad){
-        for(let i = 0; i < cardsToLoad.length; i++){
-            await this.#cardControl.load(cardsToLoad[i])
-        }
-
-        return Promise.resolve()
-    }
-
-    
 
     static mouseoverItem(item){
         const isCardItem = (item) => item.constructor.name === 'cardItem'
@@ -465,63 +338,13 @@ class displayOrchestration {
         if(isCardItem(item)){this.#cardControl.mouseOffItem(item)}
     }
 
-    static async itemClicked(item){
+    static itemClicked(item){
         const clickedCard = displays.cards[item.cardID]
         this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
-
-/*         if(clickedCard.constructor.name === 'listBoxCard'){
-            this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
-            await this.#cardControl.renderSelectionChange(clickedCard)
-            this.updateSelectableState()
-            await this.refresh()
-        } else if (clickedCard.constructor.name === 'optionCard'){
-            this.#selectionManager.updateItemSelection(item.id, clickedCard.items)
-        } */
-
-        updateCards()
-        //orchestration.selectionChange()
-
-    }
-
-    static updateSelectableState(){
-        const cardArray = Object.values(displays.cards)
-
-        for(let i = 0; i < cardArray.length; i++){
-            const card = cardArray[i]
-            const selectableItemLabels = this.#selectionManager.getSelectableItems(card.id)
-            if(selectableItemLabels !== null && card.constructor.name === 'listBoxCard'){
-                this.#cardControl.renderSelectabilityChange(card, selectableItemLabels)
-            }
-        }
-    }
-
-    static async refresh(){
-        const cardTitlesToLoad = this.#selectionManager.getSelectableItems('obligations')
-        const cardsIDsToUnload = this.getCardsToUnload(cardTitlesToLoad)
-        await this.unloadCards(cardsIDsToUnload)
-        const cards = this.createCards('optionCard', cardTitlesToLoad)
-        await this.loadCards(cards)
-        return Promise.resolve()
-    }
-
-    static getCardsToUnload(titlesToDisplay){
-        const optionCards = Object.values(displays.cards).filter(card => card.constructor.name === 'optionCard')
-        const ids = []
-
-        optionCards.forEach(card => {
-            if(!titlesToDisplay.includes(card.title)){
-                ids.push(card.id)
-            }
+        clickedCard.items.forEach(item => {
+            if(!item.selected){this.#cardControl.updateFontWeight(item.id)}
         })
-
-        return ids
-    }
-
-    static async unloadCards(cardIds){
-        for(let i = 0; i < cardIds.length; i++){
-            this.unloadCard(cardIds[i])
-        }
-        return Promise.resolve()
+        updateCards()
     }
 }
 
@@ -559,22 +382,23 @@ class cardHolder {
 
 class cardPositioning {
     static calculatePreEntryPosition(card){
-
         const pos = {}
         if(card.constructor.name === 'listBoxCard'){
-            pos.left = this.calculateLeft(card.constructor.name, card.title)
+            pos.left = this.calculateLeft(card)
         } else if (card.constructor.name  === 'optionCard'){
-            pos.left = -300
+            pos.left = -600
         }
-        pos.top = this.calculateTop(card.constructor.name, card.title)
+        
+
+        pos.top = this.calculateTop(card)
         return pos
 
     }
 
-    static calculateStartingPosition(cardType, cardTitle){
+    static calculateStartingPosition(card){
         const pos = {}
-        pos.left = this.calculateLeft(cardType, cardTitle)
-        pos.top = this.calculateTop(cardType, cardTitle)
+        pos.left = this.calculateLeft(card)
+        pos.top = this.calculateTop(card)
         return pos
     }
 
@@ -588,15 +412,15 @@ class cardPositioning {
 
     }
 
-    static calculateLeft(cardType, cardTitle){
-        const cardToLeft = this.getCardToLeft(cardType, cardTitle)
+    static calculateLeft(card){
+        const cardToLeft = this.getAdjacentCard(card.cardToLeft)
         const startLeft = this.getCardLeftValue(cardToLeft)
         const width = cardSizing.getWidth(cardToLeft)
         return startLeft + width + cardSizing.padding 
     }
 
-    static calculateTop(cardType, cardTitle){
-        const cardAbove = this.getCardAbove(cardType, cardTitle)
+    static calculateTop(card){
+        const cardAbove = this.getAdjacentCard(card.cardAbove)
         const startTop = this.getCardTopValue(cardAbove)
         const height = cardSizing.getHeight(cardAbove)
         return startTop + height + cardSizing.padding
@@ -621,17 +445,10 @@ class cardPositioning {
         }
     }
 
-    static getCardToLeft(cardType, cardTitle){ 
-        if(cardType === 'listBoxCard'){
-            switch(cardTitle){
-                case 'enterprise':
-                    return null;
-                case 'activity':
-                    return displays.cards['enterprise']
-            }
-        } else if (cardType === 'optionCard'){
-            return null;
-        }
+
+
+    static getAdjacentCard(cardTitle){ 
+        return cardTitle === null ? null : displays.cards[cardTitle]
     }
 
 
@@ -738,12 +555,6 @@ class cardFactory {
             .style('border-radius', '10px')
             .style('background-color', '#F6F7F9')
             .style('box-shadow', '0px 0px 0px rgba(0, 0, 0, 0)')
-
-
-/*             .style('left', position.left + 'px')
-            .style('top', position.top + 'px')
-            .style('width', dimensions.width + 'px')
-            .style('height', dimensions.height + 'px') */
     }
 
     #addSvg(card){
@@ -762,12 +573,12 @@ class cardControl {
     }
 
     setup(card){
-        this.#loadItems(card)
+        this.#setItems(card)
         this.#setSize(card)
-        this.#setPosition(card)
+        return this.#setPosition(card)
     }
 
-    #loadItems(card){
+    #setItems(card){
         card.items = this.handler.getCardData(card.title)
     }
 
@@ -778,54 +589,43 @@ class cardControl {
 
     #setPosition(card){
         const coordinates = cardPositioning.calculatePreEntryPosition(card)
-        this.dynamics.move(card, coordinates, 0)
+        return this.dynamics.move(card, coordinates, 0)
+
     }
 
 
 
     async load(card){
-
-        this.contentDynamics.renderItems(card)
+        this.contentDynamics.renderItems(card, 150)
 
         if(card.constructor.name === 'listBoxCard'){
             this.dynamics.emerge(card, 300)
         } else if (card.constructor.name === 'optionCard'){
             this.dynamics.emerge(card)
-            const position = cardPositioning.calculateStartingPosition('optionCard', card.title)
-            this.dynamics.move(card, position, 300)
+            const position = cardPositioning.calculateStartingPosition(card)
+            await this.dynamics.move(card, position, 150)
         }
-        
-        
-        
 
+        return Promise.resolve()
 
-        /* this.dynamics.expand(card)
-        let position = {}
-        
-        switch(card.constructor.name){
-            case 'listBoxCard':
-                position = cardPositioning.calculateStartingPosition('listBoxCard', card.title)
-                this.dynamics.move(card, position)
-                return this.dynamics.emerge(card)
-            case 'optionCard':
-                position = cardPositioning.calculateStartingPosition('optionCard', card.title)
-                await this.dynamics.emerge(card)
-                return this.dynamics.move(card, position, 300)
-        } */
-        
     }
 
-    async update(card){
-        const position = cardPositioning.calculateStartingPosition('optionCard', card.title)
-        await this.dynamics.move(card, position, 300)
+    update(card){
+        const position = cardPositioning.calculateStartingPosition(card)
+        return this.dynamics.move(card, position, 200)
     }
 
     async unload(card){
         const position = cardPositioning.calculateRemovalPosition(card)
         card.items = []
-        await this.contentDynamics.renderItems(card)
-        await this.dynamics.sink(card, 300)
-        return this.dynamics.move(card, position, 300)
+        this.contentDynamics.renderItems(card, 300)
+        if(card.constructor.name === 'listBoxCard'){
+            await this.dynamics.sink(card, 300)
+        } else if (card.constructor.name === 'optionCard'){
+            await this.dynamics.move(card, position, 100)
+        }
+        
+        return Promise.resolve()
     }
 
     mouseoverItem(item){
@@ -977,7 +777,7 @@ class cardDynamics {
 }
 
 class cardContentDynamics {
-    async renderItems(card){
+    async renderItems(card, duration = 0){
 
         const fn = {
             positioning: new cardItemPositioning (card.items),
@@ -991,16 +791,19 @@ class cardContentDynamics {
             .join(
                 enter => {
                     const t = this.enterItems(enter, fn)
+                    t.duration(duration)
                     transitions.push(t)
                     return t
                 },
                 update => {
                     const t = this.updateItems(update, fn)
+                    t.duration(duration)
                     transitions.push(t)
                     return t
                 },
                 exit => {
                     const t = this.exitItems(exit, fn)
+                    t.duration(duration)
                     transitions.push(t)
                     return t
                 }
@@ -1027,7 +830,6 @@ class cardContentDynamics {
             .attr('dy', cardItem.fontSize)
             
         return text.transition('textAppearing')
-            .duration(350)
             .ease(d3.easeCircleIn) 
             .style('fill', d => fn.styling.getTextColour(d))
 
@@ -1035,7 +837,6 @@ class cardContentDynamics {
 
     updateItems(selection, fn){
         const groups = selection.transition('itemOrder')
-            .duration(350)
             .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
 
         groups.select('text')
@@ -1049,7 +850,6 @@ class cardContentDynamics {
     exitItems(selection, fn){
         const text = selection.select('text')
             .transition('textFadeOut')
-            .duration(300)
                 .style('fill', '#F6F7F9')
             .on('end', () => {d3.select(this).remove()})
         
