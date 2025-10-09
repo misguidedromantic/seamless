@@ -39,12 +39,13 @@ class cardsController {
         this.#stateManager = new cardsStateManager
         this.#layoutManager = new cardsLayoutManager
         this.#factory = new cardFactory
-        
+        this.#controller = new cardController
     }
 
     loadDefaultCards(){
         this.#createCards(this.#stateManager.getVisibleCardTitlesForState('default'))
         this.#setupCards(this.#stateManager.getAllCards())
+        this.#displayCards(this.#stateManager.getAllCards())
     }
 
     #createCards(titles){
@@ -56,9 +57,14 @@ class cardsController {
 
     #setupCards(cards){
         this.#layoutManager.arrange(cards)
-        this.#stateManager.updateCardsData(cards)
+        this.#stateManager.setCardItems(cards)
     }
 
+    #displayCards(cards){
+        for (const card of cards){
+            this.#controller.renderContent(card)
+        }
+    }
 }
 
 class cardsLayoutManager {
@@ -69,12 +75,13 @@ class cardsLayoutManager {
     #controller = {}
     #positioning = {}
     #sizing = {}
+    #stateManager = {}
 
     constructor(){
         this.#sizing = new cardsSizing
         this.#positioning = new cardsPositioning
+        this.#stateManager = new cardsStateManager
         this.#controller = new cardController
-
     }
 
     arrange(cards){
@@ -86,7 +93,7 @@ class cardsLayoutManager {
     #setSizes(cards){
         for (const card of cards){
             const dimensions = this.#sizing.calculateDimensions(card)
-            this.#controller.setSize(card, dimensions)
+            this.#stateManager.setCardSize(card, dimensions)
         }
     }
 
@@ -95,7 +102,7 @@ class cardsLayoutManager {
             const cardToLeft = this.#getCardToLeft(card)
             const cardAbove = this.#getCardAbove(card)
             const coordinates = this.#positioning.calculateCoordinates(cardToLeft, cardAbove)
-            this.#controller.setPosition(card, coordinates)
+            this.#stateManager.setCardPosition(card, coordinates)
         }
     }
 
@@ -117,7 +124,6 @@ class cardsLayoutManager {
             this.#controller.renderSizeChange(card)
         }
     }
-
 }
 
 class cardsSizing {
@@ -163,12 +169,12 @@ class cardsPositioning {
 
     calculateCoordinates(cardToLeft, cardAbove){
         return {
-            left: this.calculateLeft(cardToLeft),
-            top: this.calculateTop(cardAbove)
+            left: this.#calculateLeft(cardToLeft),
+            top: this.#calculateTop(cardAbove)
         }
     }
 
-    calculateLeft(cardToLeft){
+    #calculateLeft(cardToLeft){
         if (cardToLeft !== null){
             return cardToLeft.left + cardToLeft.width + this.horizontalGap
         } else {
@@ -176,7 +182,7 @@ class cardsPositioning {
         }
     }
 
-    calculateTop(cardAbove){
+    #calculateTop(cardAbove){
         if (cardAbove !== null){
             return cardAbove.top + cardAbove.height + this.verticalGap
         } else {
@@ -184,7 +190,6 @@ class cardsPositioning {
         }
     }
 
-    
 }
 
 class cardsStateManager {
@@ -216,9 +221,19 @@ class cardsStateManager {
         }
     }
 
-    updateCardsData(cards){
+    setCardSize(card, dimensions){
+        card.width = dimensions.width
+        card.height = dimensions.height
+    }
+
+    setCardPosition(card, coordinates){
+        card.left = coordinates.left
+        card.top = coordinates.top
+    }
+
+    setCardItems(cards){
         for (const card of cards) {
-            console.log(this.#dataHandler.getDataForCard(card))
+            card.items = this.#dataHandler.prepareItemsForCard(card)
         }
     }
 
@@ -226,32 +241,60 @@ class cardsStateManager {
 
 class cardsDataHandler {
 
-    getDataForCard(card){
-        const items = this.getItemData(card.title)
-        if(card.constructor.name === 'listBoxCard'){
-            return [...[new cardLabel(card.title, card.title)], ...items]
-        }
-        
+    prepareItemsForCard(card){
+        console.log(card)
+        const data = this.getContentDataForCard(card.title)
+        return [
+            ...[new title (card.title)],
+            ...data.map(d => new item (d, card))
+        ]
     }
 
-    getItemData(title){
+    getContentDataForCard(title){
         let data = []
         switch(title){
             case 'enterprise':
                 data = dataHandler.getEnterprises()
-                return data.map(d => new enterprise (d, 'enterprise'))
+                return data.map(d => new enterprise (d))
         }
     }
 }
 
-class enterprise {
-    constructor(description, cardTitle){
-        this.description = description
-        this.cardTitle = cardTitle
+class title {
+    constructor(concept){
+        this.id = this.getID(concept)
+        this.label = this.getLabel(concept)
+    }
+
+    getLabel(concept){
+        return concept.charAt(0).toUpperCase() + concept.slice(1)
+    }
+
+    getID(concept){
+        return concept.replace(' ','') + 'Title'
     }
 }
 
+class item {
 
+    constructor (object, card) {
+        this.label = object.description
+        this.concept = object.constructor.name
+        this.cardID = card.title
+        this.id = this.getID(card.title, object.description)
+    }
+
+    getID(cardID, label){
+        return cardID + label.replaceAll(' ','')
+    }
+
+}
+
+class enterprise {
+    constructor(description){
+        this.description = description
+    }
+}
 
 class cardFactory {
 
@@ -292,19 +335,11 @@ class cardFactory {
 
 class cardController {
     #dynamics = {}
+    #contentDynamics = {}
 
     constructor(){
         this.#dynamics = new cardDynamics
-    }
-
-    setSize(card, dimensions){
-        card.width = dimensions.width
-        card.height = dimensions.height
-    }
-
-    setPosition(card, coordinates){
-        card.left = coordinates.left
-        card.top = coordinates.top
+        this.#contentDynamics = new cardContentDynamics
     }
 
     renderPositionChange(card, animate = false){
@@ -319,8 +354,11 @@ class cardController {
         return this.#dynamics.resize(card, dimensions, duration)
     }
 
-    renderContent(){
-
+    renderContent(card){
+        if(card.constructor.name === 'listBoxCard'){
+            this.#dynamics.emerge(card, 300)
+            this.#contentDynamics.renderItems(card)
+        }
     }
 }
 
