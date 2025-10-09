@@ -127,35 +127,45 @@ class cardsLayoutManager {
 }
 
 class cardsSizing {
+
     constructor(){
-        this.standardWidth = 200
-        this.standardItemHight = Math.round(cardItem.fontSize * 1.618)
-        this.aspectRatio = 16 / 6
+        this.aspectRatio = 9 / 16
     }
 
     calculateDimensions(card){
-        const screenSize = orchestration.getScreenDimensions()
-
         if(card.constructor.name === 'listBoxCard'){
             return {
-                width: this.#calculateStandardWidth(screenSize.width),
+                width: this.#calculateStandardWidth(),
                 height: this.#calculateListBoxHeight()
             }
         }
     }
 
-    #calculateStandardWidth(screenWidth){
+    #calculateStandardWidth(){
+        const screenWidth = orchestration.getScreenDimensions().width
+        
         if(screenWidth < 600){
             return (screenWidth - (3 * cardsLayoutManager.horizontalGap)) / 2
         } else {
-            return 200
+            return (screenWidth / gRatio - 4 * cardsLayoutManager.horizontalGap) / 3
         }
     }
 
-    #calculateListBoxHeight(expanded = false, itemCount = 6){
-        if(expanded){
-            return (itemCount * this.standardItemHight) + (cardsLayoutManager.verticalGap * 2)
+    #calculateListBoxHeight(expanded = false, itemCount = 2){
+
+        const cardWidth = this.#calculateStandardWidth()
+        const standardHeight = Math.round(cardWidth * this.aspectRatio)
+        const itemHeight = Math.round(standardHeight / 7)
+        console.log(standardHeight)
+        console.log(Math.floor(itemHeight / 2))
+
+        if(!expanded){
+            return 3 * itemHeight
+        } else {
+            return standardHeight
         }
+        
+         //itemHeight * (itemCount + 1)
     }
 
 }
@@ -282,6 +292,7 @@ class item {
         this.concept = object.constructor.name
         this.cardID = card.title
         this.id = this.getID(card.title, object.description)
+        this.selectable = true
     }
 
     getID(cardID, label){
@@ -363,8 +374,6 @@ class cardController {
 }
 
 class cardSizing {
-
-    
 
     static padding = 15
     
@@ -603,7 +612,7 @@ class card {
 
 class cardItem {
 
-    static fontSize = 12
+    static fontSize = 15
 
     constructor(label, parentCardID, selectable = true){
         this.label = label
@@ -1152,6 +1161,7 @@ class cardContentDynamics {
         const text = notTags.append('text')
             .text(d => d.label)
             .style('fill', 'white')
+            .attr('font-size', cardItem.fontSize)
             .attr('dx', 0)
             .attr('dy', cardItem.fontSize)
 
@@ -1198,7 +1208,7 @@ class cardItemStyling {
     getTextColour(d, i){
         const selectedItemIndex = this.getSelectedItemIndex()
 
-        if(d.constructor.name === 'cardLabel'){
+        if(d.constructor.name === 'title'){
             return '#336BF0'
         }  else if (d.constructor.name === 'cardTag') {
             return 'white'
@@ -1253,7 +1263,9 @@ class cardItemPositioning {
     
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
-        return listPos * Math.round(cardItem.fontSize * 1.618) + cardSizing.padding
+        const itemHeight = 19
+        const itemSpacing = itemHeight + itemHeight * 0.17
+        return listPos * itemSpacing + itemHeight / 2
     }
 
     getListPosition(d, i){
