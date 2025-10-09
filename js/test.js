@@ -1,3 +1,17 @@
+class testSuite {
+
+    run(){
+
+    }
+
+    defaultView(){
+
+    }
+
+}
+ 
+
+
 const elementsCorrectlyCreated = function(checkElements){
         const results = []
 
@@ -20,6 +34,7 @@ const typeMatch = function(domElem, checkElem){
     try{return domElem.tagName === checkElem.tagName}
     catch{return false}
 }
+
 
 
 

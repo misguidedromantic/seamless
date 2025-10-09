@@ -1,56 +1,208 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    displayOrchestration.setup()
+/*     displayOrchestration.setup()
     await displayOrchestration.createCard('enterprise')
     const enterpriseCard = displays.cards['enterprise']
-    displayOrchestration.loadCard(enterpriseCard)
+    displayOrchestration.loadCard(enterpriseCard) */
+    orchestration.setup()
+    orchestration.loadDefaultView()
 }
 
-class pageOrchestrator {
+class orchestration {
 
-    static #cardsOrchestrator = {}
+    static #cardsController = {}
 
     static setup(){
-        this.#cardsOrchestrator = new cardsOrchestrator
+        this.#cardsController = new cardsController
     }
 
     static loadDefaultView(){
-        this.#cardsOrchestrator.loadDefaultCards()
+        this.#cardsController.loadDefaultCards()
+    }
+
+    static getScreenDimensions(){
+        return {
+            width: window.innerWidth,
+            height: window.innerWidth,
+        }
     }
 }
 
-class cardsOrchestrator {
-    #cards = {}
+class cardsController {
     #stateManager = []
     #layoutManager = {}
     #factory = {}
+    #controller = {}
 
     constructor(){
         this.#stateManager = new cardsStateManager
         this.#layoutManager = new cardsLayoutManager
         this.#factory = new cardFactory
+        
     }
 
     loadDefaultCards(){
-        const titles = this.#stateManager.getVisibleCardTitlesForState('default')
-        this.#createCards(titles)
+        this.#createCards(this.#stateManager.getVisibleCardTitlesForState('default'))
+        this.#setupCards(this.#stateManager.getAllCards())
     }
 
     #createCards(titles){
         for (const title of titles) {
             const type = this.#stateManager.getCardTypeForTitle(title)
-            this.#cards[title] = this.#factory.createCard(type, title)
+            this.#stateManager.addCard(title, this.#factory.createCard(type, title))
         }
+    }
+
+    #setupCards(cards){
+        this.#layoutManager.arrange(cards)
+        this.#stateManager.updateCardsData(cards)
     }
 
 }
 
 class cardsLayoutManager {
 
+    static verticalGap = 15
+    static horizontalGap = 15
+
+    #controller = {}
+    #positioning = {}
+    #sizing = {}
+
+    constructor(){
+        this.#sizing = new cardsSizing
+        this.#positioning = new cardsPositioning
+        this.#controller = new cardController
+
+    }
+
+    arrange(cards){
+        this.#setSizes(cards)
+        this.#setGridPositions(cards)
+        this.#renderStatic(cards)
+    }
+
+    #setSizes(cards){
+        for (const card of cards){
+            const dimensions = this.#sizing.calculateDimensions(card)
+            this.#controller.setSize(card, dimensions)
+        }
+    }
+
+    #setGridPositions(cards){
+        for (const card of cards){
+            const cardToLeft = this.#getCardToLeft(card)
+            const cardAbove = this.#getCardAbove(card)
+            const coordinates = this.#positioning.calculateCoordinates(cardToLeft, cardAbove)
+            this.#controller.setPosition(card, coordinates)
+        }
+    }
+
+    #getCardToLeft(card){
+        if(card.title === 'enterprise'){
+            return null
+        }
+    }
+    
+    #getCardAbove(card){
+        if(card.title === 'enterprise'){
+            return null
+        }
+    }
+
+    #renderStatic(cards){
+        for (const card of cards){
+            this.#controller.renderPositionChange(card)
+            this.#controller.renderSizeChange(card)
+        }
+    }
+
+}
+
+class cardsSizing {
+    constructor(){
+        this.standardWidth = 200
+        this.standardItemHight = Math.round(cardItem.fontSize * 1.618)
+        this.aspectRatio = 16 / 6
+    }
+
+    calculateDimensions(card){
+        const screenSize = orchestration.getScreenDimensions()
+
+        if(card.constructor.name === 'listBoxCard'){
+            return {
+                width: this.#calculateStandardWidth(screenSize.width),
+                height: this.#calculateListBoxHeight()
+            }
+        }
+    }
+
+    #calculateStandardWidth(screenWidth){
+        if(screenWidth < 600){
+            return (screenWidth - (3 * cardsLayoutManager.horizontalGap)) / 2
+        } else {
+            return 200
+        }
+    }
+
+    #calculateListBoxHeight(expanded = false, itemCount = 6){
+        if(expanded){
+            return (itemCount * this.standardItemHight) + (cardsLayoutManager.verticalGap * 2)
+        }
+    }
+
+}
+
+class cardsPositioning {
+
+    constructor(){
+        this.verticalGap = 15
+        this.horizontalGap = 15
+    }
+
+    calculateCoordinates(cardToLeft, cardAbove){
+        return {
+            left: this.calculateLeft(cardToLeft),
+            top: this.calculateTop(cardAbove)
+        }
+    }
+
+    calculateLeft(cardToLeft){
+        if (cardToLeft !== null){
+            return cardToLeft.left + cardToLeft.width + this.horizontalGap
+        } else {
+            return this.horizontalGap
+        }
+    }
+
+    calculateTop(cardAbove){
+        if (cardAbove !== null){
+            return cardAbove.top + cardAbove.height + this.verticalGap
+        } else {
+            return this.verticalGap
+        }
+    }
+
+    
 }
 
 class cardsStateManager {
+    #dataHandler = {}
+
+    constructor() {
+        this.cards = new Map()
+        this.#dataHandler = new cardsDataHandler
+    }
+
+    addCard(title, obj){
+        this.cards.set(title, obj)
+    }
+
+    getAllCards(){
+        return Array.from(this.cards.values())
+    }
+
     getVisibleCardTitlesForState(state){
         if(state === 'default'){
             return ['enterprise']
@@ -63,7 +215,43 @@ class cardsStateManager {
                 return 'listBoxCard'
         }
     }
+
+    updateCardsData(cards){
+        for (const card of cards) {
+            console.log(this.#dataHandler.getDataForCard(card))
+        }
+    }
+
 }
+
+class cardsDataHandler {
+
+    getDataForCard(card){
+        const items = this.getItemData(card.title)
+        if(card.constructor.name === 'listBoxCard'){
+            return [...[new cardLabel(card.title, card.title)], ...items]
+        }
+        
+    }
+
+    getItemData(title){
+        let data = []
+        switch(title){
+            case 'enterprise':
+                data = dataHandler.getEnterprises()
+                return data.map(d => new enterprise (d, 'enterprise'))
+        }
+    }
+}
+
+class enterprise {
+    constructor(description, cardTitle){
+        this.description = description
+        this.cardTitle = cardTitle
+    }
+}
+
+
 
 class cardFactory {
 
@@ -101,6 +289,118 @@ class cardFactory {
     }
 
 }
+
+class cardController {
+    #dynamics = {}
+
+    constructor(){
+        this.#dynamics = new cardDynamics
+    }
+
+    setSize(card, dimensions){
+        card.width = dimensions.width
+        card.height = dimensions.height
+    }
+
+    setPosition(card, coordinates){
+        card.left = coordinates.left
+        card.top = coordinates.top
+    }
+
+    renderPositionChange(card, animate = false){
+        const duration = animate ? 350 : 0
+        const coordinates = {left: card.left, top: card.top,}
+        return this.#dynamics.move(card, coordinates, duration)
+    }
+
+    renderSizeChange(card, animate = false){
+        const duration = animate ? 350 : 0
+        const dimensions = {width: card.width, height: card.height}
+        return this.#dynamics.resize(card, dimensions, duration)
+    }
+
+    renderContent(){
+
+    }
+}
+
+class cardSizing {
+
+    
+
+    static padding = 15
+    
+    static calculateStartingDimensions(card){
+
+        let itemCount = undefined
+
+        if(card.title === 'mechanism'){
+            console.log(card.items.length)
+            itemCount = card.items.length
+        } else if (card.constructor.name === 'listBoxCard') {
+            itemCount = 6
+        } else {
+            itemCount = 2
+        }
+        
+        return {
+            width: 300,
+            height: this.calculateCardHeight(itemCount)
+        }
+    }
+
+    static calculateUpdateDimensions(){}
+    
+    static getWidth(card){
+        try{
+            const stringWidth = d3.select('#' + card.id + 'Div').style('width')
+            return parseInt(stringWidth.slice(0, stringWidth.indexOf('px')))
+        } catch {
+            return 0
+        }
+    }
+
+    static getHeight(card){
+        try{
+            const stringHeight = d3.select('#' + card.id + 'Div').style('height')
+            return parseInt(stringHeight.slice(0, stringHeight.indexOf('px')))
+        } catch {
+            return 0
+        }
+        
+    }
+
+    static calculateCardHeight (itemCount){
+        const itemHeight = Math.round(cardItem.fontSize * 1.618)
+        return itemCount * itemHeight + cardSizing.padding * 2
+    }
+    
+    static calculateCardWidth (cardID){
+        const widestItem = this.getWidestItemWidth(cardID)
+        return widestItem + cardSizing.padding * 3
+    }
+
+    static getWidestItemWidth(cardID){
+        const svg = d3.select('#' + cardID + 'Svg')
+        const gItems = svg.selectAll('g')
+        let widestWidth = 0
+        gItems.each((d, i) => {
+            const elemWidth = this.getElemWidth(d.id)
+            if(elemWidth > widestWidth){
+                widestWidth = elemWidth
+            }
+        })
+
+        return widestWidth
+    }
+
+    static getElemWidth(id){
+        const elem = d3.select('#' + id)
+        return parseInt(Math.ceil(elem.node().getBBox().width))
+    }
+
+}
+
 
 function getLoadActions (requiredStates, requiredActions){
     const cardLoaded = (cardTitle) => {
@@ -657,81 +957,6 @@ class cardPositioning {
     }
 }
 
-class cardSizing {
-    static padding = 15
-    
-    static calculateStartingDimensions(card){
-
-        let itemCount = undefined
-
-        if(card.title === 'mechanism'){
-            console.log(card.items.length)
-            itemCount = card.items.length
-        } else if (card.constructor.name === 'listBoxCard') {
-            itemCount = 6
-        } else {
-            itemCount = 2
-        }
-        
-        return {
-            width: 300,
-            height: this.calculateCardHeight(itemCount)
-        }
-    }
-
-    static calculateUpdateDimensions(){}
-    
-    static getWidth(card){
-        try{
-            const stringWidth = d3.select('#' + card.id + 'Div').style('width')
-            return parseInt(stringWidth.slice(0, stringWidth.indexOf('px')))
-        } catch {
-            return 0
-        }
-    }
-
-    static getHeight(card){
-        try{
-            const stringHeight = d3.select('#' + card.id + 'Div').style('height')
-            return parseInt(stringHeight.slice(0, stringHeight.indexOf('px')))
-        } catch {
-            return 0
-        }
-        
-    }
-
-    static calculateCardHeight (itemCount){
-        const itemHeight = Math.round(cardItem.fontSize * 1.618)
-        return itemCount * itemHeight + cardSizing.padding * 2
-    }
-    
-    static calculateCardWidth (cardID){
-        const widestItem = this.getWidestItemWidth(cardID)
-        return widestItem + cardSizing.padding * 3
-    }
-
-    static getWidestItemWidth(cardID){
-        const svg = d3.select('#' + cardID + 'Svg')
-        const gItems = svg.selectAll('g')
-        let widestWidth = 0
-        gItems.each((d, i) => {
-            const elemWidth = this.getElemWidth(d.id)
-            if(elemWidth > widestWidth){
-                widestWidth = elemWidth
-            }
-        })
-
-        return widestWidth
-    }
-
-    static getElemWidth(id){
-        const elem = d3.select('#' + id)
-        return parseInt(Math.ceil(elem.node().getBBox().width))
-    }
-
-}
-
-
 
 class cardDynamics {
 
@@ -1012,6 +1237,14 @@ class cardItemPositioning {
 }
 
 class dataHandler{
+
+    static getEnterprises(){
+        return [
+            'side hustle',
+            'construction company',
+            'freelance profressional'
+        ]
+    }
     
     getOptionCardData(title){
         const obligations = obligationData.getItems()
@@ -1045,6 +1278,9 @@ class dataHandler{
 }
 
 class enterpriseData {  
+    
+    
+    
     static getItems(){
         const items = this.createItems()
         items.forEach(item => {item.cardID = 'enterprise'})
