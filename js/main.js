@@ -1264,8 +1264,8 @@ class cardItemPositioning {
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
         const itemHeight = 19
-        const itemSpacing = itemHeight + itemHeight * 0.17
-        return listPos * itemSpacing + itemHeight / 2
+        const itemSpacing = itemHeight * 0.15
+        return listPos * (itemHeight + itemSpacing) + (itemHeight - itemSpacing) / 2
     }
 
     getListPosition(d, i){
