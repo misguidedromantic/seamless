@@ -1,10 +1,6 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-/*     displayOrchestration.setup()
-    await displayOrchestration.createCard('enterprise')
-    const enterpriseCard = displays.cards['enterprise']
-    displayOrchestration.loadCard(enterpriseCard) */
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -18,13 +14,25 @@ class orchestration {
     }
 
     static loadDefaultView(){
-        this.#cardsController.loadDefaultCards()
+        this.#cardsController.refresh()
     }
 
     static getScreenDimensions(){
         return {
             width: window.innerWidth,
             height: window.innerWidth,
+        }
+    }
+
+    static handleCardItemClick(event, d){
+        this.#cardsController.manageItemClick(d)
+    }
+
+    static handleCardItemHovering(event, d){
+        if(event.type === 'mouseover'){
+            this.#cardsController.manageItemMouseOver(d)
+        } else if (event.type === 'mouseout'){
+            this.#cardsController.manageItemMouseOut(d)
         }
     }
 }
@@ -42,29 +50,127 @@ class cardsController {
         this.#controller = new cardController
     }
 
-    loadDefaultCards(){
-        this.#createCards(this.#stateManager.getVisibleCardTitlesForState('default'))
-        this.#setupCards(this.#stateManager.getAllCards())
-        this.#displayCards(this.#stateManager.getAllCards())
+    refresh(){
+        const requiredActions = this.#stateManager.getRequiredLoadingActions()
+        if(requiredActions.toUnload.length > 0){
+            this.unloadCards(requiredActions.toUnload)
+        }
+
+        if(requiredActions.toUpdate.length > 0){
+            this.updateCards(requiredActions.toUpdate)
+        }
+
+        if(requiredActions.toLoad.length > 0){
+            this.loadCards(requiredActions.toLoad)
+        }
     }
+
+    loadCards(titles){
+        this.#createCards(titles)
+        this.#setupCards(this.#stateManager.getCardsToLoad(titles))
+        this.#displayCards(this.#stateManager.getCardsToLoad(titles))
+    }
+
+    unloadCards(cards){
+        this.#hideCards(cards)
+        this.#removeCards(cards)
+    }
+
+    updateCards(cards){
+        const allCards = this.#stateManager.getAllCards()
+        this.#layoutManager.arrange(cards, allCards)
+    }
+
+    manageItemClick(clickedItem){
+        const clickedCard = this.#stateManager.getCard(clickedItem.cardID)
+        this.#stateManager.updateCardItemsSelectionState(clickedItem)
+        this.#controller.renderSelectionChange(clickedCard)
+        this.refresh()
+    }
+
+    manageItemMouseOver(item){
+        if(item.constructor.name === 'title' || item.constructor.name === 'subTitle'){
+            return
+        }
+        const card = this.#stateManager.getCard(item.cardID)
+        if(item.constructor.name === 'cardTag' || card.title === 'mechanism'){
+            const linkedItems = this.#stateManager.getLinkedItems(item)
+            console.log(linkedItems)
+            for(const item of linkedItems){
+                if(item.constructor.name === 'cardTag'){
+                    this.#controller.updateRectFill(item.id, 'gold')
+                } else if (item.constructor.name === 'item'){
+                    console.log(item.id)
+                    this.#controller.updateTextFill(item.id, 'gold')
+                }
+            }
+            
+        } else if (item.constructor.name === 'item'){
+            this.#controller.updateFontWeight(item.id, 'bold')
+        }
+
+    }
+
+    manageItemMouseOut(item){
+        if(item.constructor.name === 'title' || item.constructor.name === 'subTitle'){
+            return
+        }
+        const card = this.#stateManager.getCard(item.cardID)
+        if(item.constructor.name === 'cardTag' || card.title === 'mechanism'){
+            const linkedItems = this.#stateManager.getLinkedItems(item)
+            for(const item of linkedItems){
+                if(item.constructor.name === 'cardTag'){
+                    this.#controller.updateRectFill(item.id, 'grey')
+                } else if (item.constructor.name === 'item'){
+                    this.#controller.updateTextFill(item.id, '#131C3E')
+                }
+            }
+        } else if (item.constructor.name === 'item' && !item.selected){
+            this.#controller.updateFontWeight(item.id, 'normal')
+        }
+    }
+
+
 
     #createCards(titles){
         for (const title of titles) {
             const type = this.#stateManager.getCardTypeForTitle(title)
             this.#stateManager.addCard(title, this.#factory.createCard(type, title))
+            if(type === 'optionCard'){
+                const card = this.#stateManager.getCard(title)
+                card.previousCard = this.#stateManager.getPreviousOptionCardTitle(title)
+            }
         }
     }
 
     #setupCards(cards){
-        this.#layoutManager.arrange(cards)
+        const allCards = this.#stateManager.getAllCards()
         this.#stateManager.setCardItems(cards)
+        this.#layoutManager.arrange(cards, allCards) 
     }
 
-    #displayCards(cards){
+    async #displayCards(cards){
         for (const card of cards){
             this.#controller.renderContent(card)
         }
     }
+
+    #hideCards(cards){
+        for (const card of cards){
+            card.items = []
+            this.#controller.renderContent(card)
+        }
+    }
+
+    #removeCards(cards){
+        for (const card of cards){
+            card.div.remove()
+            this.#stateManager.removeCard(card.title)
+        }
+    }
+
+
+
 }
 
 class cardsLayoutManager {
@@ -84,10 +190,10 @@ class cardsLayoutManager {
         this.#controller = new cardController
     }
 
-    arrange(cards){
-        this.#setSizes(cards)
-        this.#setGridPositions(cards)
-        this.#renderStatic(cards)
+    arrange(cardsToArrange, allCards){
+        this.#setSizes(cardsToArrange)
+        this.#setGridPositions(cardsToArrange, allCards)
+        this.#renderStatic(cardsToArrange)
     }
 
     #setSizes(cards){
@@ -97,24 +203,36 @@ class cardsLayoutManager {
         }
     }
 
-    #setGridPositions(cards){
-        for (const card of cards){
-            const cardToLeft = this.#getCardToLeft(card)
-            const cardAbove = this.#getCardAbove(card)
+    #setGridPositions(cardsToPosition, allCards){
+        for (const card of cardsToPosition){
+            const cardToLeft = this.#getCardToLeft(card, allCards)
+            const cardAbove = this.#getCardAbove(card, allCards)
             const coordinates = this.#positioning.calculateCoordinates(cardToLeft, cardAbove)
             this.#stateManager.setCardPosition(card, coordinates)
         }
     }
 
-    #getCardToLeft(card){
-        if(card.title === 'enterprise'){
+    #getCardToLeft(thisCard, allCards){
+        if(thisCard.title === 'enterprise'){
             return null
+        } else if (thisCard.title === 'activity'){
+            return allCards.find(card => card.title === 'enterprise')
+        } else if (thisCard.title === 'mechanism'){
+            return allCards.find(card => card.title === 'enterprise')
+        } else {
+            return null 
         }
     }
     
-    #getCardAbove(card){
-        if(card.title === 'enterprise'){
+    #getCardAbove(thisCard, allCards){
+        if(thisCard.title === 'enterprise'){
             return null
+        } else if (thisCard.title === 'activity'){
+            return null
+        } else if (thisCard.title === 'mechanism'){
+            return allCards.find(card => card.title === 'activity')
+        } else {
+            return allCards.find(card => card.title === thisCard.previousCard)
         }
     }
 
@@ -136,7 +254,12 @@ class cardsSizing {
         if(card.constructor.name === 'listBoxCard'){
             return {
                 width: this.#calculateStandardWidth(),
-                height: this.#calculateListBoxHeight()
+                height: this.#calculateListBoxHeight(card)
+            }
+        } else if(card.constructor.name === 'optionCard'){
+            return {
+                width: this.#calculateStandardWidth(),
+                height: this.#calculateOptionCardHeight()
             }
         }
     }
@@ -147,25 +270,20 @@ class cardsSizing {
         if(screenWidth < 600){
             return (screenWidth - (3 * cardsLayoutManager.horizontalGap)) / 2
         } else {
-            return (screenWidth / gRatio - 4 * cardsLayoutManager.horizontalGap) / 3
+            return (screenWidth / gRatio - 4 * cardsLayoutManager.horizontalGap) / 2
         }
     }
 
-    #calculateListBoxHeight(expanded = false, itemCount = 2){
-
-        const cardWidth = this.#calculateStandardWidth()
-        const standardHeight = Math.round(cardWidth * this.aspectRatio)
-        const itemHeight = Math.round(standardHeight / 7)
-        console.log(standardHeight)
-        console.log(Math.floor(itemHeight / 2))
-
-        if(!expanded){
-            return 3 * itemHeight
+    #calculateListBoxHeight(card){
+        if(card.selectedItem() !== null){
+            return 4 * cardItem.fontSize  
         } else {
-            return standardHeight
+            return (card.items.length + 2) * cardItem.fontSize
         }
-        
-         //itemHeight * (itemCount + 1)
+    }
+
+    #calculateOptionCardHeight(){
+        return 4 * cardItem.fontSize
     }
 
 }
@@ -204,10 +322,12 @@ class cardsPositioning {
 
 class cardsStateManager {
     #dataHandler = {}
+    #controller = {}
 
     constructor() {
         this.cards = new Map()
         this.#dataHandler = new cardsDataHandler
+        this.#controller = new cardController
     }
 
     addCard(title, obj){
@@ -218,16 +338,26 @@ class cardsStateManager {
         return Array.from(this.cards.values())
     }
 
-    getVisibleCardTitlesForState(state){
-        if(state === 'default'){
-            return ['enterprise']
-        }
+    getCard(title){
+        return this.cards.get(title)
     }
+
+    getCardByID(id){
+        const cards = this.getAllCards()
+        return cards.find(card => card.id === id)
+    }
+
+
+
 
     getCardTypeForTitle(title){
         switch(title){
             case 'enterprise':
+            case 'activity':
+            case 'mechanism':
                 return 'listBoxCard'
+            default:
+                return 'optionCard'
         }
     }
 
@@ -243,16 +373,180 @@ class cardsStateManager {
 
     setCardItems(cards){
         for (const card of cards) {
-            card.items = this.#dataHandler.prepareItemsForCard(card)
+            if(card.constructor.name === 'listBoxCard'){
+                card.items = this.#dataHandler.prepareItemsForListBoxCard(card)
+            } else if (card.constructor.name === 'optionCard'){
+                card.items = this.#dataHandler.prepareItemsForOptionCard(card)
+            }
+
         }
     }
+
+    removeCard(id){
+        this.cards.delete(id)
+    }
+
+
+    updateCardItemsSelectionState(clickedItem){
+        const card = this.cards.get(clickedItem.cardID)
+        let itemsToDeselect = card.items.filter(item => item.selectable && item.selected)
+
+        if(clickedItem.selectable && !clickedItem.selected){
+            clickedItem.selected = true
+            itemsToDeselect = itemsToDeselect.filter(item => item !== clickedItem)
+        } 
+
+        itemsToDeselect.forEach(item => item.selected = false)
+
+    }
+
+    getRequiredLoadingActions(){
+        const visibleCards = this.getAllCards()
+        const shouldBeVisibleCards = this.getRequiredVisiblityStates()
+
+        return {
+            toUnload: this.getCardsToUnload(visibleCards, shouldBeVisibleCards),
+            toLoad: this.getCardsToCreate(visibleCards, shouldBeVisibleCards),
+            toUpdate: this.getCardsToUpdate(visibleCards, shouldBeVisibleCards)
+        }
+
+    }
+
+    getCardsToLoad(titles){
+        const cardsToLoad = []
+        for(const title of titles){
+            cardsToLoad.push(this.getCard(title))
+        }
+        return cardsToLoad
+    }
+
+    getCardsToCreate(visibleCards, shouldBeVisibleCards){
+        const toLoad = []
+        for(const cardTitle of shouldBeVisibleCards){
+            if(!visibleCards.some(card => card.title === cardTitle)){
+                toLoad.push(cardTitle)
+            }
+        }
+        return toLoad
+    }
+
+    getCardsToUpdate(visibleCards, shouldBeVisibleCards){
+        const toUpdate = []
+        for(const card of visibleCards){
+            if(shouldBeVisibleCards.includes(card.title)){
+                toUpdate.push(card)
+            }
+        }
+        return toUpdate
+    }
+
+
+    getCardsToUnload(visibleCards, shouldBeVisibleCards){
+        const toUnload = []
+        for(const card of visibleCards){
+            if(!shouldBeVisibleCards.includes(card.title)){
+                toUnload.push(card)
+            }
+        }
+        return toUnload
+    }
+
+
+    getRequiredVisiblityStates(){
+        let shouldBeVisible = this.getVisibleCardsFromEnterpriseState()
+
+        const optionCardsToAdd = shouldBeVisible.includes('activity') ? this.getVisibleCardsFromActivityState() : null
+        if(optionCardsToAdd !== null){
+            shouldBeVisible = [...shouldBeVisible, ...optionCardsToAdd]
+            shouldBeVisible.push('mechanism')
+        }
+
+        return shouldBeVisible
+    }
+
+    getVisibleCardsFromEnterpriseState(){
+        const enterpriseCard = this.cards.get('enterprise')
+        if(enterpriseCard === undefined){
+            return ['enterprise']
+        }
+
+        const selectedEnterprise = enterpriseCard.selectedItem()
+        
+        if(selectedEnterprise === null){
+            return ['enterprise']
+        } else {
+            return ['enterprise', 'activity']
+        }
+    }
+
+    getVisibleCardsFromActivityState(){
+        const activityCard = this.cards.get('activity')
+        if(activityCard === undefined){
+            return null
+        }
+        
+        const selectedActivity = activityCard.selectedItem()
+
+        if(selectedActivity === null){
+            return null
+        } else {
+            const enterpriseCard = this.cards.get('enterprise')
+            const selectedEnterprise = enterpriseCard.selectedItem()
+            return this.getApplicableObjectivies(selectedEnterprise, selectedActivity)
+        }
+            
+    }
+
+    getApplicableObjectivies(selectedEnterprise, selectedActivity){
+        const enterpriseObjectives = objectiveData.getObjectivesForEnterprise(selectedEnterprise.label)
+        const activityObjectives = objectiveData.getObjectivesForActivity(selectedActivity.label)
+        const enterpriseSet = new Set (enterpriseObjectives)
+        return activityObjectives.filter(element => enterpriseSet.has(element))
+    }
+
+    getPreviousOptionCardTitle(title){
+        const optionCards = this.getAllCards().filter(card => card.constructor.name === 'optionCard')
+        
+        for (let i = 0; i < optionCards.length; i++){
+            const thisOptionCard = optionCards[i]
+            if(thisOptionCard.title === title){
+                const prevCard = optionCards[i - 1]
+                return prevCard === undefined ? 'enterprise' : prevCard.title
+            }
+            
+        }
+    }
+
+    getLinkedItems(thisItem){
+        const optionCards = this.getAllCards().filter(card => card.constructor.name === 'optionCard')
+        let linkedItems = []
+        
+        if(thisItem.constructor.name === 'cardTag'){
+            const mechanismCard = this.getCard('mechanism')
+            linkedItems.push(mechanismCard.items.find(item => item.label === thisItem.label))
+        } else if(thisItem.cardID === 'mechanism') {
+            linkedItems.push(thisItem)
+        } 
+
+        for(const card of optionCards){
+            const linkedItem = card.items.find(item => item.label === thisItem.label)
+            if(linkedItem !== undefined){
+                linkedItems.push(linkedItem)
+            }
+        }
+
+        return linkedItems
+    }
+
+
+
+
 
 }
 
 class cardsDataHandler {
 
-    prepareItemsForCard(card){
-        console.log(card)
+    prepareItemsForListBoxCard(card){
         const data = this.getContentDataForCard(card.title)
         return [
             ...[new title (card.title)],
@@ -260,12 +554,37 @@ class cardsDataHandler {
         ]
     }
 
+    prepareItemsForOptionCard(card){
+        const data = this.getContentDataForCard(card.title)
+        const obligations = data.filter(d => d.constructor.name === 'obligation').map(d => new item(d, card))
+        const mechanisms = data.filter(d => d.constructor.name === 'mechanism').map(d => new cardTag(d, card))
+
+        const thisObligation = obligations[0]
+
+        return [
+            ...obligations,
+            ...[new subTitle (thisObligation.concept, card)],
+            ...mechanisms
+        ]
+    }
+
+
+
     getContentDataForCard(title){
         let data = []
         switch(title){
             case 'enterprise':
                 data = dataHandler.getEnterprises()
                 return data.map(d => new enterprise (d))
+            case 'activity':
+                data = dataHandler.getActivities()
+                return data.map(d => new activity (d))
+            case 'mechanism':
+                data = dataHandler.getMechanisms()
+                console.log(data)
+                return data.map(d => new mechanism (d))
+            default:
+                return dataHandler.getOptionCardData(title)
         }
     }
 }
@@ -285,13 +604,24 @@ class title {
     }
 }
 
+class subTitle {
+    constructor(concept, card){
+        this.id = this.getID(card.title, concept)
+        this.label = concept
+    }
+
+    getID(cardID, label){
+        return cardID + label.replaceAll(' ','')
+    }
+}
+
 class item {
 
     constructor (object, card) {
         this.label = object.description
         this.concept = object.constructor.name
-        this.cardID = card.title
-        this.id = this.getID(card.title, object.description)
+        this.cardID = card.id
+        this.id = this.getID(card.id, object.description)
         this.selectable = true
     }
 
@@ -299,9 +629,34 @@ class item {
         return cardID + label.replaceAll(' ','')
     }
 
+
+}
+
+class cardTag extends item {
+    constructor(object, card){
+        super(object, card)
+    }
 }
 
 class enterprise {
+    constructor(description){
+        this.description = description
+    }
+}
+
+class activity {
+    constructor(description){
+        this.description = description
+    }
+}
+
+class obligation {
+    constructor(description){
+        this.description = description
+    }
+}
+
+class mechanism {
     constructor(description){
         this.description = description
     }
@@ -368,8 +723,32 @@ class cardController {
     renderContent(card){
         if(card.constructor.name === 'listBoxCard'){
             this.#dynamics.emerge(card, 300)
-            this.#contentDynamics.renderItems(card)
+            this.#contentDynamics.renderItems(card, 300)
+        } else if (card.constructor.name === 'optionCard'){
+            this.#dynamics.emerge(card, 300)
+            this.#contentDynamics.renderItems(card, 300)
+
         }
+    }
+
+    async renderSelectionChange(card){
+        await this.#contentDynamics.renderItems(card, 300)
+        this.renderSizeChange(card, true)
+    }
+
+    updateFontWeight(itemID, fontWeight){
+        const elem = d3.select('#' + itemID)
+        elem.select('text').style('font-weight', fontWeight)
+    }
+
+    updateTextFill(itemID, fill){
+        const elem = d3.select('#' + itemID)
+        elem.select('text').style('fill', fill)
+    }
+
+    updateRectFill(itemID, fill){
+        const elem = d3.select('#' + itemID)
+        elem.select('rect').attr('fill', fill)
     }
 }
 
@@ -382,7 +761,6 @@ class cardSizing {
         let itemCount = undefined
 
         if(card.title === 'mechanism'){
-            console.log(card.items.length)
             itemCount = card.items.length
         } else if (card.constructor.name === 'listBoxCard') {
             itemCount = 6
@@ -418,8 +796,7 @@ class cardSizing {
     }
 
     static calculateCardHeight (itemCount){
-        const itemHeight = Math.round(cardItem.fontSize * 1.618)
-        return itemCount * itemHeight + cardSizing.padding * 2
+        return (itemCount + 1) * cardItem.fontSize
     }
     
     static calculateCardWidth (cardID){
@@ -612,7 +989,7 @@ class card {
 
 class cardItem {
 
-    static fontSize = 15
+    static fontSize = 16
 
     constructor(label, parentCardID, selectable = true){
         this.label = label
@@ -642,11 +1019,7 @@ class cardLabel extends cardItem {
     }
 }
 
-class cardTag extends cardItem {
-    constructor(label, parentCardID){
-        super(label, parentCardID, true)
-    }
-}
+
 
 class selectionManager {
 
@@ -1004,7 +1377,6 @@ class cardPositioning {
     }
 }
 
-
 class cardDynamics {
 
     emerge(card, duration = 0){
@@ -1067,7 +1439,7 @@ class cardDynamics {
 
     expand(card, duration = 0){
         const calculateHeight = (itemCount) => {
-            const itemHeight = Math.round(cardItem.fontSize * 1.618)
+            const itemHeight = Math.round(cardItem.fontSize)
             return itemCount * itemHeight + cardSizing.padding * 2
         }
 
@@ -1087,8 +1459,7 @@ class cardDynamics {
 
     contract(card, duration = 0){
         const calculateHeight = (itemCount) => {
-            const itemHeight = Math.round(cardItem.fontSize * 1.618)
-            return itemCount * itemHeight + cardSizing.padding * 2
+            return (itemCount + 1) * cardItem.fontSize
         }
 
 
@@ -1112,9 +1483,8 @@ class cardDynamics {
 
 class cardContentDynamics {
     async renderItems(card, duration = 0){
-
         const fn = {
-            positioning: new cardItemPositioning (card.items),
+            positioning: new cardItemPositioning (card),
             styling: new cardItemStyling (card.items),
         }
 
@@ -1153,17 +1523,17 @@ class cardContentDynamics {
             .attr('id', d => d.id)
             .attr('class', fn.cardLabel)
             .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
-            .on('mouseover', (event, d) => cardEvents.onItemHover(event, d))
-            .on('mouseout', (event, d) => cardEvents.onItemOff(event, d))
-            .on('click', (event, d) => cardEvents.onItemClick(event, d))
+            .on('mouseover', (event, d) => orchestration.handleCardItemHovering(event, d))
+            .on('mouseout', (event, d) => orchestration.handleCardItemHovering(event, d))
+            .on('click', (event, d) => orchestration.handleCardItemClick(event, d))
 
         const notTags = groups.filter(elem => elem.constructor.name !== 'cardTag')
         const text = notTags.append('text')
             .text(d => d.label)
             .style('fill', 'white')
-            .attr('font-size', cardItem.fontSize)
+            .attr('font-size', '0.8em')
             .attr('dx', 0)
-            .attr('dy', cardItem.fontSize)
+            .attr('dy', '0.8em')
 
         const tags = groups.filter(elem => elem.constructor.name === 'cardTag')
         tags.append('rect')
@@ -1171,21 +1541,21 @@ class cardContentDynamics {
             .attr('height', 15)
             .attr('fill', 'grey')
             
-        return text.transition('textAppearing')
+        return text.transition()
             .ease(d3.easeCircleIn) 
             .style('fill', d => fn.styling.getTextColour(d))
 
     }
 
     updateItems(selection, fn){
-        const groups = selection.transition('itemOrder')
+        const groups = selection.transition()
             .attr('transform', (d, i) => {return fn.positioning.getTranslate(d, i)})
 
-        groups.select('text')
-            .style('font-weight', d => fn.styling.getFontWeight(d))
+        const text = groups.select('text')
+        
+        text.style('font-weight', d => fn.styling.getFontWeight(d))
             .style('fill', d => fn.styling.getTextColour(d))
             
-
         return groups
     }
 
@@ -1197,6 +1567,7 @@ class cardContentDynamics {
         
         return text
     }
+
 }
 
 
@@ -1237,8 +1608,9 @@ class cardItemStyling {
 
 class cardItemPositioning {
 
-    constructor(items){
-        this.items = items
+    constructor(card){
+        this.items = card.items
+        this.cardWidth = card.width
     }
 
     getTranslate(d, i){
@@ -1250,9 +1622,14 @@ class cardItemPositioning {
     getPosX(d, i){
         const selectedIndex = this.getSelectedItemIndex()
 
-        if(d.constructor.name === 'cardTag'){
-            return 300 - ((i - 2) * 20) - cardSizing.padding * 2
+        if(d.constructor.name === 'title'){
+            return cardSizing.padding
         }
+
+        if(d.constructor.name === 'cardTag'){
+            return this.cardWidth - ((i - 2) * 20) - cardSizing.padding * 2
+        }
+
 
         if(selectedIndex === -1){
             return cardSizing.padding
@@ -1263,13 +1640,13 @@ class cardItemPositioning {
     
     getPosY(d, i){
         const listPos = this.getListPosition(d, i)
-        const itemHeight = 19
-        const itemSpacing = itemHeight * 0.15
-        return listPos * (itemHeight + itemSpacing) + (itemHeight - itemSpacing) / 2
+        return listPos * cardItem.fontSize + cardItem.fontSize
     }
 
     getListPosition(d, i){
-        if(d.constructor.name === 'cardTag'){
+        if(d.constructor.name === 'title'){
+            return 0
+        } else if(d.constructor.name === 'cardTag'){
             return 0
         } else if (d.constructor.name === 'cardLabel'){
             return i
@@ -1295,18 +1672,40 @@ class dataHandler{
             'freelance profressional'
         ]
     }
+
+    static getActivities(){
+        return [
+            'paying employees',
+            'selling to enterprise',
+            'selling to a customer',
+            'starting the business',
+            'setting up fin mgmt systems'
+        ]
+    }
+
+    static getMechanisms(){
+        return [
+            'entreprenuers bank account',
+            'government business registry',
+            'business accounting software',
+            'manual calculation',
+            'government lodgment portal',
+            'manual electronic funds transfer',
+            'payroll software',
+            'point of sale system'
+        ]
+    }
     
-    getOptionCardData(title){
-        const obligations = obligationData.getItems()
-        const thisObligation = obligations.find(item => item.label === title)
-        const mechanisms = mechanismData.getApplicableMechanisms(thisObligation.label)
+    static getOptionCardData(title){
+        const obligations = obligationData.getAllObligations()
+        const thisObligation = obligations.find(item => item.description === title)
+        const mechanisms = mechanismData.getApplicableMechanisms(thisObligation.description)
         
         const items = []
-            items.push(obligations.find(item => item.label === 'obligation'))
-            items.push(thisObligation)
+        items.push(thisObligation)
 
-        mechanisms.forEach(mechanism => {
-            items.push(new cardTag(mechanism))
+        mechanisms.forEach(description => {
+            items.push(new mechanism(description))
         })
 
         return items
@@ -1600,6 +1999,17 @@ class mechanismData {
                 break;
         }
         return mechanisms
+    }
+
+    static getAll(){
+            new cardItem ('entreprenuers bank account'),
+            new cardItem ('government business registry'),
+            new cardItem ('business accounting software'),
+            new cardItem ('manual calculation'),
+            new cardItem ('government lodgment portal'),
+            new cardItem ('manual electronic funds transfer'),
+            new cardItem ('payroll software'),
+            new cardItem ('point of sale system')
     }
 
     static getItems (){
