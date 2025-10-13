@@ -79,57 +79,59 @@ class cardsController {
     updateCards(cards){
         const allCards = this.#stateManager.getAllCards()
         this.#layoutManager.arrange(cards, allCards)
+        for(const card of cards){
+            this.#controller.renderSelectionChange(card)
+        }
+        
     }
 
-    manageItemClick(clickedItem){
-        const clickedCard = this.#stateManager.getCard(clickedItem.cardID)
+    async manageItemClick(clickedItem){
         this.#stateManager.updateCardItemsSelectionState(clickedItem)
-        this.#controller.renderSelectionChange(clickedCard)
         this.refresh()
     }
 
-    manageItemMouseOver(item){
-        if(item.constructor.name === 'title' || item.constructor.name === 'subTitle'){
-            return
+
+    renderColourChange(itemType, itemID, colour){
+        if(itemType === 'cardTag'){
+            this.#controller.updateRectFill(itemID, colour)
+        } else if (itemType === 'item'){
+            this.#controller.updateTextFill(itemID, colour)
         }
-        const card = this.#stateManager.getCard(item.cardID)
-        if(item.constructor.name === 'cardTag' || card.title === 'mechanism'){
+    }
+
+    highlightLinkedItems(items){
+        const colour = 'gold'
+        for(const item of items){
+            this.renderColourChange(item.constructor.name, item.id, colour)
+        }
+    }
+
+    unHighlightLinkedItems(items){
+        let colour = undefined
+        for(const item of items){
+            colour = item.constructor.name === 'cardTag' ? 'grey' : '#131C3E'
+            this.renderColourChange(item.constructor.name, item.id, colour)
+        }
+    }
+
+
+    manageItemMouseOver(item){
+        if(this.#stateManager.isLinkedItem(item)){
             const linkedItems = this.#stateManager.getLinkedItems(item)
-            console.log(linkedItems)
-            for(const item of linkedItems){
-                if(item.constructor.name === 'cardTag'){
-                    this.#controller.updateRectFill(item.id, 'gold')
-                } else if (item.constructor.name === 'item'){
-                    console.log(item.id)
-                    this.#controller.updateTextFill(item.id, 'gold')
-                }
-            }
-            
-        } else if (item.constructor.name === 'item'){
+            this.highlightLinkedItems(linkedItems)
+        } else if(item.constructor.name === 'item'){
             this.#controller.updateFontWeight(item.id, 'bold')
         }
-
     }
 
     manageItemMouseOut(item){
-        if(item.constructor.name === 'title' || item.constructor.name === 'subTitle'){
-            return
-        }
-        const card = this.#stateManager.getCard(item.cardID)
-        if(item.constructor.name === 'cardTag' || card.title === 'mechanism'){
-            const linkedItems = this.#stateManager.getLinkedItems(item)
-            for(const item of linkedItems){
-                if(item.constructor.name === 'cardTag'){
-                    this.#controller.updateRectFill(item.id, 'grey')
-                } else if (item.constructor.name === 'item'){
-                    this.#controller.updateTextFill(item.id, '#131C3E')
-                }
-            }
-        } else if (item.constructor.name === 'item' && !item.selected){
+        if(this.#stateManager.isLinkedItem(item)){
+            const linkedItems = this.#stateManager.getLinkedItems(item).filter(item => !item.selected)
+            this.unHighlightLinkedItems(linkedItems)
+        } else if(item.constructor.name === 'item'){
             this.#controller.updateFontWeight(item.id, 'normal')
         }
     }
-
 
 
     #createCards(titles){
@@ -275,7 +277,7 @@ class cardsSizing {
     }
 
     #calculateListBoxHeight(card){
-        if(card.selectedItem() !== null){
+        if(card.selectedItem() !== null && card.title !== 'mechanism'){
             return 4 * cardItem.fontSize  
         } else {
             return (card.items.length + 2) * cardItem.fontSize
@@ -347,9 +349,6 @@ class cardsStateManager {
         return cards.find(card => card.id === id)
     }
 
-
-
-
     getCardTypeForTitle(title){
         switch(title){
             case 'enterprise':
@@ -387,18 +386,41 @@ class cardsStateManager {
     }
 
 
-    updateCardItemsSelectionState(clickedItem){
-        const card = this.cards.get(clickedItem.cardID)
-        let itemsToDeselect = card.items.filter(item => item.selectable && item.selected)
-
-        if(clickedItem.selectable && !clickedItem.selected){
-            clickedItem.selected = true
-            itemsToDeselect = itemsToDeselect.filter(item => item !== clickedItem)
-        } 
-
-        itemsToDeselect.forEach(item => item.selected = false)
-
+    updateLinkedItemSelections(clickedItem){
+        const linkedItems = this.getLinkedItems(clickedItem)
+        if(clickedItem.selected){
+            linkedItems.forEach(item => item.selected = false)
+        } else {
+            linkedItems.forEach(item => item.selected = true)
+        }
     }
+
+    updateStandardItemSelections(clickedItem){
+        if (clickedItem.selectable && !clickedItem.selected){
+            clickedItem.selected = true
+            this.deselectOtherItems(clickedItem)
+        } else {
+            clickedItem.selected = false
+        }
+    }
+
+
+    deselectOtherItems(clickedItem){
+        const card = this.cards.get(clickedItem.cardID)
+        const toDeselect = card.items.filter(item => item.selectable && item.selected && item !== clickedItem)
+        toDeselect.forEach(item => item.selected = false)
+    }
+
+
+    updateCardItemsSelectionState(clickedItem){
+        if(this.isLinkedItem(clickedItem)){
+            this.updateLinkedItemSelections(clickedItem)
+        } else {
+            this.updateStandardItemSelections(clickedItem)
+        }
+    }
+
+    
 
     getRequiredLoadingActions(){
         const visibleCards = this.getAllCards()
@@ -538,6 +560,13 @@ class cardsStateManager {
         return linkedItems
     }
 
+    isLinkedItem(item){
+        const selectable = item.selectable
+        const onMechansimCard = item.cardID === 'mechanism'
+        const isTag = item.constructor.name === 'cardTag'
+        return selectable && (onMechansimCard || isTag)
+    }
+
 
 
 
@@ -581,7 +610,6 @@ class cardsDataHandler {
                 return data.map(d => new activity (d))
             case 'mechanism':
                 data = dataHandler.getMechanisms()
-                console.log(data)
                 return data.map(d => new mechanism (d))
             default:
                 return dataHandler.getOptionCardData(title)
@@ -727,7 +755,6 @@ class cardController {
         } else if (card.constructor.name === 'optionCard'){
             this.#dynamics.emerge(card, 300)
             this.#contentDynamics.renderItems(card, 300)
-
         }
     }
 
@@ -824,7 +851,6 @@ class cardSizing {
     }
 
 }
-
 
 function getLoadActions (requiredStates, requiredActions){
     const cardLoaded = (cardTitle) => {
@@ -1018,8 +1044,6 @@ class cardLabel extends cardItem {
         super(label, parentCardID, false)
     }
 }
-
-
 
 class selectionManager {
 
@@ -1577,23 +1601,40 @@ class cardItemStyling {
     }
 
     getTextColour(d, i){
-        const selectedItemIndex = this.getSelectedItemIndex()
-
-        if(d.constructor.name === 'title'){
-            return '#336BF0'
-        }  else if (d.constructor.name === 'cardTag') {
-            return 'white'
-        } else if (selectedItemIndex > 0){
-            return d.selected ? '#131C3E' : 'white'
-        } else if (d.selectable) {
-            return '#131C3E'
-        } else {
-            return '#AEB3BD'
+        switch(d.constructor.name){
+            case 'title':
+                return '#336BF0'
+            case 'subTitle':
+                return 'grey'
+            case 'item':
+                return this.getItemTextColour(d)
+            case 'cardTag':
+                return 'white'
         }
+
     }
 
+    getItemTextColour(d){
+        if(!d.selectable){
+            return '#AEB3BD'
+        }
+
+        if(d.cardID === 'mechanism' && d.selected){
+            return 'gold'
+        }
+
+        return '#131C3E'
+
+    }
+
+    getRectColour(d){
+        return d.selected ? 'gold' : 'grey'
+    }
+
+    
+
     getFontWeight(d){
-        return d.selected ? 'bold' : 'normal'
+        return d.selected && d.cardID !== 'mechanism' ? 'bold' : 'normal'
     }
 
     getTextAnchor(d, fn){
@@ -1622,20 +1663,30 @@ class cardItemPositioning {
     getPosX(d, i){
         const selectedIndex = this.getSelectedItemIndex()
 
-        if(d.constructor.name === 'title'){
-            return cardSizing.padding
+        switch(d.constructor.name){
+            case 'title':
+            case 'subTitle':
+                return cardSizing.padding
+            case 'item':
+                return this.getItemPosX(d)
+            case 'cardTag':
+                 return this.cardWidth - ((i - 2) * 20) - cardSizing.padding * 2
         }
+    }
 
-        if(d.constructor.name === 'cardTag'){
-            return this.cardWidth - ((i - 2) * 20) - cardSizing.padding * 2
-        }
-
-
-        if(selectedIndex === -1){
-            return cardSizing.padding
+    getItemPosX(d){
+        const selectedIndex = this.getSelectedItemIndex()
+        
+        if(selectedIndex > -1 && this.isExclusiveSelectionCard(d)){
+            return !d.selected ? - 300 : cardSizing.padding 
         } else {
-            return !d.selected && d.constructor.name !== 'cardLabel' ? - 300 : cardSizing.padding
+            return cardSizing.padding
         }
+    }
+
+    isExclusiveSelectionCard(d){
+        console.log(d)
+        return d.cardID !== 'mechanism' && d.concept !== 'obligation'
     }
     
     getPosY(d, i){
@@ -1644,17 +1695,27 @@ class cardItemPositioning {
     }
 
     getListPosition(d, i){
-        if(d.constructor.name === 'title'){
-            return 0
-        } else if(d.constructor.name === 'cardTag'){
-            return 0
-        } else if (d.constructor.name === 'cardLabel'){
-            return i
-        } else if (d.selected){
-            return 1
-        } else {
+        switch(d.constructor.name){
+            case 'title':
+            case 'cardTag':
+                return 0
+            case 'subTitle':
+                return 1
+            case 'item':
+                return this.getItemListPosition(d, i)
+            
+        }
+    }
+
+    getItemListPosition(d, i){
+        if(d.cardID === 'mechanism' || !d.selected){
             return i
         }
+
+        if(d.selected){
+            return 1
+        }
+
     }
 
     getSelectedItemIndex(){
