@@ -1,8 +1,36 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    orchestration.setup()
-    orchestration.loadDefaultView()
+    
+    function getDefaultCardsData(){
+        const dataHandler = new cardsDataHandler
+        return [
+            dataHandler.getCardData('enterpriseSelector')
+        ]
+    }
+
+    const defaultCardsData = getDefaultCardsData()
+    orchestrator.loadCards(defaultCardsData)
+}
+
+class orchestrator {
+    
+    static loadCards(cardsData){
+        const factory = new cardFactory
+        const layoutManager = new cardsLayoutManager
+        const controller = new cardController
+        
+        for(let i = 0; i < cardsData.length; i++){
+            const cardData = cardsData[i]
+            const card = factory.createCard(cardData.type, cardData.id)
+            controller.configureCard(card, cardData)
+            controller.positionCard(card, i)
+            controller.revealCard(card)
+        }
+    }
+
+
+
 }
 
 class orchestration {
@@ -14,7 +42,15 @@ class orchestration {
     }
 
     static loadDefaultView(){
-        this.#cardsController.refresh()
+        const defaultCardsDetails = [
+            {type: 'listBoxCard', function: 'user selection exclusive', topic: 'enterprise'}
+        ]
+
+        this.#cardsController.createCards(defaultCardsDetails)
+
+        //create cards
+        //reveal cards
+        //this.#cardsController.refresh()
     }
 
     static getScreenDimensions(){
@@ -42,6 +78,7 @@ class cardsController {
     #layoutManager = {}
     #factory = {}
     #controller = {}
+    #cards = []
 
     constructor(){
         this.#stateManager = new cardsStateManager
@@ -49,6 +86,39 @@ class cardsController {
         this.#factory = new cardFactory
         this.#controller = new cardController
     }
+
+    createCards(details){
+        details.forEach(detail => {
+            const card = this.#factory.createCard(detail.type, detail.topic)
+            this.#cards.push(card)
+        })
+
+    
+/*         for (const title of titles) {
+            const type = this.#stateManager.getCardTypeForTitle(title)
+            this.#stateManager.addCard(title, this.#factory.createCard(type, title))
+            if(type === 'optionCard'){
+                const card = this.#stateManager.getCard(title)
+                card.previousCard = this.#stateManager.getPreviousOptionCardTitle(title)
+            }
+        } */
+    }
+
+    configureCards(cards){
+
+    }
+
+    revealCards(titles){
+
+    }
+
+
+    #setupCards(cards){
+        const allCards = this.#stateManager.getAllCards()
+        this.#stateManager.setCardItems(cards)
+        this.#layoutManager.arrange(cards, allCards) 
+    }
+
 
     refresh(){
         const requiredActions = this.#stateManager.getRequiredLoadingActions()
@@ -66,7 +136,7 @@ class cardsController {
     }
 
     loadCards(titles){
-        this.#createCards(titles)
+        this.createCards(titles)
         this.#setupCards(this.#stateManager.getCardsToLoad(titles))
         this.#displayCards(this.#stateManager.getCardsToLoad(titles))
     }
@@ -81,15 +151,13 @@ class cardsController {
         this.#layoutManager.arrange(cards, allCards)
         for(const card of cards){
             this.#controller.renderSelectionChange(card)
-        }
-        
+        }  
     }
 
     async manageItemClick(clickedItem){
         this.#stateManager.updateCardItemsSelectionState(clickedItem)
         this.refresh()
     }
-
 
     renderColourChange(itemType, itemID, colour){
         if(itemType === 'cardTag'){
@@ -114,7 +182,6 @@ class cardsController {
         }
     }
 
-
     manageItemMouseOver(item){
         if(this.#stateManager.isLinkedItem(item)){
             const linkedItems = this.#stateManager.getLinkedItems(item)
@@ -134,22 +201,8 @@ class cardsController {
     }
 
 
-    #createCards(titles){
-        for (const title of titles) {
-            const type = this.#stateManager.getCardTypeForTitle(title)
-            this.#stateManager.addCard(title, this.#factory.createCard(type, title))
-            if(type === 'optionCard'){
-                const card = this.#stateManager.getCard(title)
-                card.previousCard = this.#stateManager.getPreviousOptionCardTitle(title)
-            }
-        }
-    }
 
-    #setupCards(cards){
-        const allCards = this.#stateManager.getAllCards()
-        this.#stateManager.setCardItems(cards)
-        this.#layoutManager.arrange(cards, allCards) 
-    }
+
 
     async #displayCards(cards){
         for (const card of cards){
@@ -170,9 +223,6 @@ class cardsController {
             this.#stateManager.removeCard(card.title)
         }
     }
-
-
-
 }
 
 class cardsLayoutManager {
@@ -192,10 +242,14 @@ class cardsLayoutManager {
         this.#controller = new cardController
     }
 
-    arrange(cardsToArrange, allCards){
+    getGridCoordinates(thisCard, allCards){
+        
+    }
+
+    arrange(cardsToArrange, allCards, animate = false){
         this.#setSizes(cardsToArrange)
         this.#setGridPositions(cardsToArrange, allCards)
-        this.#renderStatic(cardsToArrange)
+        this.#renderLayoutChanges(cardsToArrange)
     }
 
     #setSizes(cards){
@@ -238,10 +292,10 @@ class cardsLayoutManager {
         }
     }
 
-    #renderStatic(cards){
+    #renderLayoutChanges(cards, animate){
         for (const card of cards){
             this.#controller.renderPositionChange(card)
-            this.#controller.renderSizeChange(card)
+            this.#controller.renderSizeChange(card, animate)
         }
     }
 }
@@ -575,6 +629,19 @@ class cardsStateManager {
 
 class cardsDataHandler {
 
+    getCardData(id){
+        switch(id){
+            case 'enterpriseSelector':
+                return {
+                    id: id,
+                    title: 'enterprise',
+                    type: 'listBoxCard',
+                    multiSelector: false,
+                    contentData: this.getContentDataForCard('enterprise')
+                }
+        }
+    }
+
     prepareItemsForListBoxCard(card){
         const data = this.getContentDataForCard(card.title)
         return [
@@ -597,8 +664,6 @@ class cardsDataHandler {
         ]
     }
 
-
-
     getContentDataForCard(title){
         let data = []
         switch(title){
@@ -618,17 +683,17 @@ class cardsDataHandler {
 }
 
 class title {
-    constructor(concept){
-        this.id = this.getID(concept)
-        this.label = this.getLabel(concept)
+    constructor(text){
+        this.id = this.getID(text)
+        this.label = text //this.getLabel(title)
     }
 
-    getLabel(concept){
-        return concept.charAt(0).toUpperCase() + concept.slice(1)
+    getLabel(text){
+        return text.charAt(0).toUpperCase() + text.slice(1)
     }
 
-    getID(concept){
-        return concept.replace(' ','') + 'Title'
+    getID(text){
+        return text.replace(' ','')
     }
 }
 
@@ -692,21 +757,19 @@ class mechanism {
 
 class cardFactory {
 
-    createCard(type, title){
-        const card = this.#createObject(type, title)
+    createCard(type, id){
+        const card = this.#createObject(type, id)
         this.#addDiv(card)
         this.#addSvg(card)
         return card
     }
 
-    #createObject(type, title){
+    #createObject(type, id){
         switch(type){
             case 'listBoxCard':
-                return new listBoxCard(title)
+                return new listBoxCard(id)
             case 'optionCard':
-                return new optionCard(title)
-            default:
-                return new card(type, title)
+                return new optionCard(id)
         }
     }
 
@@ -736,6 +799,36 @@ class cardController {
         this.#contentDynamics = new cardContentDynamics
     }
 
+    configureCard(card, cardData){
+        card.items = [
+                ...[new title (cardData.title)],
+                ...cardData.contentData.map(d => new item (d, card))
+            ]
+
+        card.multiSelect = cardData.multiSelector
+        card.width = 200
+        card.height = 200
+    }
+
+    positionCard(card, gridCoordinates){
+
+
+        const screenColumns = 2
+
+        if(card.type === 'listBoxCard'){
+            const column = screenColumns > index ? index + 1 : 2
+            const row = screenColumns > index ? 1 : 2
+        }
+
+
+
+
+    }
+
+    revealCard(card){
+
+    }
+
     renderPositionChange(card, animate = false){
         const duration = animate ? 350 : 0
         const coordinates = {left: card.left, top: card.top,}
@@ -743,7 +836,7 @@ class cardController {
     }
 
     renderSizeChange(card, animate = false){
-        const duration = animate ? 350 : 0
+        const duration = animate ? 300 : 0
         const dimensions = {width: card.width, height: card.height}
         return this.#dynamics.resize(card, dimensions, duration)
     }
@@ -758,9 +851,9 @@ class cardController {
         }
     }
 
-    async renderSelectionChange(card){
-        await this.#contentDynamics.renderItems(card, 300)
-        this.renderSizeChange(card, true)
+    renderSelectionChange(card){
+        this.#contentDynamics.renderItems(card, 300)
+        //this.renderSizeChange(card, true)
     }
 
     updateFontWeight(itemID, fontWeight){
@@ -1003,15 +1096,7 @@ async function updateCards (){
 
 }
 
-class card {
-    constructor(type, title){
-        this.type = type
-        this.title = title
-    }
 
-    
-
-}
 
 class cardItem {
 
@@ -1285,26 +1370,16 @@ class cardControl {
 }
 
 class listBoxCard {
-    maxVisibleItems = 6
-    left = 0
-    top = 0
-    constructor(title){
-        this.title = title
-        this.id = this.title.toLowerCase().replaceAll(' ','')
+    constructor(id){
+        this.id = id
+        this.hidden = true
     }
-
-    selectedItem(){
-        const foundItem = this.items.find(item => item.selected)
-        return foundItem === undefined ? null : foundItem
-    }
-
 }
 
 class optionCard {
-    maxVisibleItems = 2
-    constructor(title){
-        this.title = title
-        this.id = this.title.toLowerCase().replaceAll(' ','')
+    constructor(id){
+        this.id = id
+        this.hidden = true
     }
 }
 
