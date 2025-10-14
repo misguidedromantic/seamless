@@ -1,9 +1,44 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    orchestration.setup()
-    orchestration.loadDefaultView()
+    loadAggregator()
+    //orchestration.setup()
+    //orchestration.loadDefaultView()
 }
+
+function loadAggregator(){
+    const card = createAggregator()
+    configureTextAggregator(card)
+    positionAggregatorForReveal(card)
+    revealAggregator(card)
+}
+
+function createAggregator(){
+    const factory = new cardFactory
+    return factory.createCard('textAggregatorCard', 'user story')
+}
+
+function configureTextAggregator(card){
+    const sizing = new cardsSizing
+    const dynamics = new cardDynamics
+    const dimensions = sizing.calculateDimensions(card)
+    card.height = dimensions.height
+    card.width = dimensions.width
+    card.visible = false
+    dynamics.resize(card, dimensions, 0)
+}
+
+function positionAggregatorForReveal(card){
+    const dynamics = new cardDynamics
+    const position = {left: 15, top: 15}
+    dynamics.move(card, position, 0)
+}
+
+function revealAggregator(card){
+    const dynamics = new cardDynamics
+    dynamics.emerge(card, 500)
+}
+
 
 class orchestration {
 
@@ -192,6 +227,17 @@ class cardsLayoutManager {
         this.#controller = new cardController
     }
 
+    getLayout(){
+        return {
+            storyWriter: {row: 1, col: 1, colsWide: 2},
+            enterpriseSelector: {row: 2, col: 1, colsWide: 1},
+            activitySelector: {row: 2, col: 2, colsWide: 1},
+
+
+        }
+
+    }
+
     arrange(cardsToArrange, allCards){
         this.#setSizes(cardsToArrange)
         this.#setGridPositions(cardsToArrange, allCards)
@@ -258,10 +304,15 @@ class cardsSizing {
                 width: this.#calculateStandardWidth(),
                 height: this.#calculateListBoxHeight(card)
             }
-        } else if(card.constructor.name === 'optionCard'){
+        } else if (card.constructor.name === 'optionCard'){
             return {
                 width: this.#calculateStandardWidth(),
                 height: this.#calculateOptionCardHeight()
+            }
+        } else if (card.constructor.name === 'textAggregatorCard'){
+            return {
+                width: this.#calculateTextAggregatorWidth(),
+                height: this.#calculateTextAggregatorHeight()
             }
         }
     }
@@ -286,6 +337,19 @@ class cardsSizing {
 
     #calculateOptionCardHeight(){
         return 4 * cardItem.fontSize
+    }
+
+    #calculateTextAggregatorWidth(){
+        const screenWidth = orchestration.getScreenDimensions().width
+        if(screenWidth < 600){
+            return (screenWidth - (2 * cardsLayoutManager.horizontalGap))
+        } else {
+            return (screenWidth / gRatio - 2 * cardsLayoutManager.horizontalGap)
+        }
+    }
+
+    #calculateTextAggregatorHeight(){
+        return 250
     }
 
 }
@@ -705,6 +769,8 @@ class cardFactory {
                 return new listBoxCard(title)
             case 'optionCard':
                 return new optionCard(title)
+            case 'textAggregatorCard':
+                return new textAggregatorCard(title)
             default:
                 return new card(type, title)
         }
@@ -725,6 +791,13 @@ class cardFactory {
             .attr('id', card.id + 'Svg')
     }
 
+}
+
+class textAggregatorCard {
+    constructor(title){
+        this.title = title
+        this.id = this.title.toLowerCase().replaceAll(' ','')
+    }
 }
 
 class cardController {
