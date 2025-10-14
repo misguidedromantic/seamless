@@ -37,6 +37,8 @@ function positionAggregatorForReveal(card){
 function revealAggregator(card){
     const dynamics = new cardDynamics
     dynamics.emerge(card, 500)
+    card.div.style('background', 'red')
+    card.svg.append('text').text('As a ').style('fill', 'black').attr('dy', 25).attr('dx', 25)
 }
 
 
