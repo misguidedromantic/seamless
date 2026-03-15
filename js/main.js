@@ -1788,9 +1788,6 @@ class dataHandler{
 }
 
 class enterpriseData {  
-    
-    
-    
     static getItems(){
         const items = this.createItems()
         items.forEach(item => {item.cardID = 'enterprise'})
@@ -2074,9 +2071,10 @@ class mechanismData {
     }
 
     static getItems (){
+
         return [
             new cardLabel ('mechanism'),
-            new cardItem ('entreprenuers bank account'),
+            new cardItem (this.getMechanismLabel('entreprenuers bank account')),
             new cardItem ('government business registry'),
             new cardItem ('business accounting software'),
             new cardItem ('manual calculation'),
@@ -2102,6 +2100,15 @@ class mechanismData {
             break;
         }
         return labels
+    }
+
+    static getMechanismLabel(baseLabel){
+        switch(baseLabel){
+            case 'entreprenuers bank account':
+                return baseLabel + ' + embedded Tax Rules (RaC) + auto-registration'
+            default:
+                return baseLabel
+        } 
     }
 
 }
