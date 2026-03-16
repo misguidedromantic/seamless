@@ -617,7 +617,9 @@ class cardsDataHandler {
                 data = dataHandler.getActivities()
                 return data.map(d => new activity (d))
             case 'mechanism':
-                return dataHandler.getMechanisms()
+                data = dataHandler.getMechanisms()
+                console.log(data)
+                return data
             default:
                 return dataHandler.getOptionCardData(title)
         }
