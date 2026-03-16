@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1620 2026 03 16')
+    console.log('1631 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -1400,7 +1400,7 @@ class dataHandler{
     static getActivities(){
         return [
             'paying employees',
-            'selling to enterprise',
+            'purchasing from business',
             'selling to a customer',
             'starting the business',
             'setting up fin mgmt systems'
@@ -1435,7 +1435,7 @@ class dataHandler{
             'government lodgment portal',
             'manual electronic funds transfer',
             'payroll software',
-            'point of sale system'
+            'digital wallet'
         ]
 
     }
@@ -1446,8 +1446,15 @@ class dataHandler{
         switch(description){
             case 'entreprenuers bank account':
                 features = [
+                    'automated tax registration',
+                    'machine-readable tax rules'
+                    
+                ]
+            case 'digital wallet':
+                features = [
+                    'e-invoicing integration',
                     'machine-readable tax rules',
-                    'automated tax registration'
+                    'vendor automated indirect tax reporting and payment'
                 ]
         }
         
@@ -1536,7 +1543,7 @@ class objectiveData {
                 labels.push ('collect vat')
                 labels.push ('report vat')
             
-            case 'selling to enterprise':
+            case 'purchasing from business':
                 labels.push ('pay vat')
                 break;
             
@@ -1598,7 +1605,7 @@ class mechanismData {
                 mechanisms.push('business accounting software')
             case 'pay vat':
             case 'collect vat':
-                mechanisms.push('point of sale system')
+                mechanisms.push('digital wallet')
                 break;
             
             case 'register for income tax':
