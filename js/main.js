@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1110 2026 03 16')
+    console.log('1131 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -1746,7 +1746,7 @@ class dataHandler{
 
     static getMechanisms(){
         return [
-            'entreprenuers bank account',
+            this.getMechanismText('entreprenuers bank account'),
             'government business registry',
             'business accounting software',
             'manual calculation',
@@ -1755,6 +1755,15 @@ class dataHandler{
             'payroll software',
             'point of sale system'
         ]
+    }
+
+    static getMechanismText(baseText){
+        switch(baseText){
+            case 'entreprenuers bank account':
+                return baseText + ' + embedded Tax Rules (RaC) + auto-registration'
+            default:
+                return baseText
+        } 
     }
     
     static getOptionCardData(title){
