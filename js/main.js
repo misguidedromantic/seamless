@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1548 2026 03 16')
+    console.log('1554 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -53,7 +53,6 @@ class cardsController {
 
     refresh(){
         const requiredActions = this.#stateManager.getRequiredLoadingActions()
-        console.log(requiredActions)
         if(requiredActions.toUnload.length > 0){
             this.unloadCards(requiredActions.toUnload)
         }
@@ -91,7 +90,6 @@ class cardsController {
         this.#stateManager.updateCardItemsSelectionState(clickedItem)
         this.refresh()
     }
-
 
     renderColourChange(itemType, itemID, colour){
         if(itemType === 'cardTag'){
@@ -581,7 +579,7 @@ class cardsDataHandler {
         
         return [
             ...[new title (card.title)],
-            ...data.map(d => this.mapToItemType(d, card))
+            ...data.map(d => {return this.mapToItemType(d, card)})
         ]
     }
 
@@ -1264,6 +1262,7 @@ class cardItemStyling {
             case 'subTitle':
                 return 'grey'
             case 'item':
+            case 'subItem':
                 return this.getItemTextColour(d)
             case 'cardTag':
                 return 'white'
