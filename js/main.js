@@ -2060,19 +2060,31 @@ class mechanismData {
     }
 
     static getAll(){
-            new cardItem ('entreprenuers bank account'),
-            new cardItem ('government business registry'),
-            new cardItem ('business accounting software'),
-            new cardItem ('manual calculation'),
-            new cardItem ('government lodgment portal'),
-            new cardItem ('manual electronic funds transfer'),
-            new cardItem ('payroll software'),
-            new cardItem ('point of sale system')
+        return [
+            'entreprenuers bank account',
+            'government business registry',
+            'business accounting software',
+            'manual calculation',
+            'government lodgment portal',
+            'manual electronic funds transfer',
+            'payroll software',
+            'point of sale system'
+        ] 
     }
 
-    static getItems (){
+    static getItems (labelText = 'mechanism'){
+        const itemTextArray = this.getAll()
+        const items = [new cardLabel (labelText)] 
 
-        return [
+        itemTextArray.forEach(text => {
+            items.push(new cardItem (this.getMechanismLabel(text)))
+        })
+
+        console.log(items)
+
+        return items
+
+/*         return [
             new cardLabel ('mechanism'),
             new cardItem (this.getMechanismLabel('entreprenuers bank account')),
             new cardItem ('government business registry'),
@@ -2082,7 +2094,7 @@ class mechanismData {
             new cardItem ('manual electronic funds transfer'),
             new cardItem ('payroll software'),
             new cardItem ('point of sale system')
-        ]
+        ] */
     }
 
 
