@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1610 2026 03 16')
+    console.log('1620 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -681,6 +681,11 @@ class subItem extends item {
         this.label = ' + ' + this.label
         this.selectable = false 
     }
+
+    getID(label){
+        return this.constructor.name + label.replaceAll(' ','')
+    }
+
 }
 
 
@@ -1322,10 +1327,10 @@ class cardItemPositioning {
         const selectedIndex = this.getSelectedItemIndex()
 
         switch(d.constructor.name){
-            case 'title':
-            case 'subTitle':
+            default:
                 return cardSizing.padding
             case 'item':
+            case 'subItem':
                 return this.getItemPosX(d)
             case 'cardTag':
                  return this.cardWidth - ((i - 2) * 20) - cardSizing.padding * 2
@@ -1359,6 +1364,7 @@ class cardItemPositioning {
             case 'subTitle':
                 return 1
             case 'item':
+            case 'subItem':
                 return this.getItemListPosition(d, i)
             
         }
