@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1207 2026 03 16')
+    console.log('1316 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -666,6 +666,7 @@ class cardTag extends item {
     }
 }
 
+
 class enterprise {
     constructor(description){
         this.description = description
@@ -689,6 +690,12 @@ class mechanism {
         this.description = description
     }
 }
+
+class mechanismFeature {
+    constructor(description){
+        this.description = description
+    }
+} 
 
 class cardFactory {
 
@@ -1377,8 +1384,27 @@ class dataHandler{
     }
 
     static getMechanisms(){
+        const items = []
+
+    
+        const descriptions = this.getMechansimDescriptions()
+        descriptions.forEach(description => {
+            const thisItem = this.getMechanism(description)
+
+            items.push(thisItem)
+
+            if(thisItem.features !== null){
+                this.addFeatures(items, thisItem.features)    
+            }
+
+        })
+
+        return items
+    }
+
+    static getMechansimDescriptions(){
         return [
-            this.getMechanismText('entreprenuers bank account'),
+            'entreprenuers bank account',
             'government business registry',
             'business accounting software',
             'manual calculation',
@@ -1387,7 +1413,34 @@ class dataHandler{
             'payroll software',
             'point of sale system'
         ]
+
     }
+
+    static getMechanism(description){
+        let features = null
+        
+        switch(description){
+            case 'entreprenuers bank account':
+                features = [
+                    new mechanismFeature('machine-readable tax rules'),
+                    new mechanismFeature('automated tax registration')
+                ]
+        }
+        
+        return {
+            description: new mechanism (description),
+            features: features
+        }
+
+    }
+
+    static addFeatures(items, features){
+        features.forEach(feature => {
+            items.push(new feature)
+        })
+    }
+
+    
 
     static getMechanismText(baseText){
         switch(baseText){
@@ -1500,100 +1553,6 @@ class obligationData {
 
     }
 
-    static getItems (){
-        const items = this.createItems()
-        items.forEach(item => {item.cardID = item.id})
-        return items
-    }
-
-    static createItems(){
-        return [
-            new cardLabel ('obligation'),
-            new cardItem ('register for income tax'),
-            new cardItem ('record keep for income tax'),
-            new cardItem ('calculate income tax'),
-            new cardItem ('report income tax'),
-            new cardItem ('pay income tax'),
-            new cardItem ('calculate vat'),
-            new cardItem ('collect vat'),
-            new cardItem ('report vat'),
-            new cardItem ('pay vat'),
-            new cardItem ('calculate payroll tax'),
-            new cardItem ('collect payroll tax'),
-            new cardItem ('report payroll tax'),
-            new cardItem ('pay payroll tax'),
-        ]
-    }
-
-
-
-    static getSelectableItems (selectedEnterprise, selectedActivity){
-        const itemsEnterprise = this.getEnterpriseSelectableItems(selectedEnterprise)
-        const itemsActivity = this.getActivitySelectableItems(selectedActivity)
-        return itemsEnterprise.filter(item => itemsActivity.includes(item))
-    }
-
-    static getEnterpriseSelectableItems(enterpriseSelection){
-        const labels = []
-        switch(enterpriseSelection){
-            default:
-            case 'construction company':
-                labels.push ('calculate payroll tax')
-                labels.push ('collect payroll tax')
-                labels.push ('report payroll tax')
-                labels.push ('pay payroll tax')
-            case 'freelance profressional':
-                labels.push ('calculate vat')
-                labels.push ('collect vat')
-                labels.push ('report vat')
-                labels.push ('pay vat')
-            case 'side hustle':
-                labels.push ('register for income tax')
-                labels.push ('record keep for income tax')
-                labels.push ('calculate income tax')
-                labels.push ('report income tax')
-                labels.push ('pay income tax')
-        }
-        return labels
-    }
-
-    static getActivitySelectableItems(activitySelection){
-        const labels = []
-        switch(activitySelection){
-            case 'paying employees':
-                labels.push ('calculate payroll tax')
-                labels.push ('collect payroll tax')
-                labels.push ('report payroll tax')
-                labels.push ('pay payroll tax')
-                break;
-            
-            case 'selling to a customer':
-                labels.push ('record keep for income tax')
-                labels.push ('calculate vat')
-                labels.push ('collect vat')
-                labels.push ('report vat')
-            
-            case 'selling to enterprise':
-                labels.push ('pay vat')
-                break;
-            
-            case 'starting the business':
-                labels.push ('register for income tax')
-                labels.push ('register for vat')
-                break;
-
-            case 'setting up fin mgmt systems': 
-                labels.push ('collect payroll tax')
-                labels.push ('calculate income tax')
-                labels.push ('report income tax')
-                labels.push ('pay income tax')
-                break;
-        }
-        return labels
-    }
-
-    
-
 }
 
 class mechanismData {
@@ -1629,70 +1588,6 @@ class mechanismData {
                 break;
         }
         return mechanisms
-    }
-
-    static getAll(){
-        return [
-            'entreprenuers bank account',
-            'government business registry',
-            'business accounting software',
-            'manual calculation',
-            'government lodgment portal',
-            'manual electronic funds transfer',
-            'payroll software',
-            'point of sale system'
-        ] 
-    }
-
-    static getItems (labelText = 'mechanism'){
-        const itemTextArray = this.getAll()
-        const items = [new cardLabel (labelText)] 
-
-        itemTextArray.forEach(text => {
-            items.push(new cardItem (this.getMechanismLabel(text)))
-        })
-
-        console.log(items)
-
-        return items
-
-/*         return [
-            new cardLabel ('mechanism'),
-            new cardItem (this.getMechanismLabel('entreprenuers bank account')),
-            new cardItem ('government business registry'),
-            new cardItem ('business accounting software'),
-            new cardItem ('manual calculation'),
-            new cardItem ('government lodgment portal'),
-            new cardItem ('manual electronic funds transfer'),
-            new cardItem ('payroll software'),
-            new cardItem ('point of sale system')
-        ] */
-    }
-
-
-    static getObligationSelectableItems(obligationSelection){
-        const labels = []
-        switch(obligationSelection){
-            case 'calculate income tax':
-            case 'report income tax': 
-            case 'pay income tax':
-                labels.push('entreprenuers bank account')
-                break;
-            case 'register for income tax':
-                labels.push('entreprenuers bank account')
-                labels.push('government business registry')
-            break;
-        }
-        return labels
-    }
-
-    static getMechanismLabel(baseLabel){
-        switch(baseLabel){
-            case 'entreprenuers bank account':
-                return baseLabel + ' + embedded Tax Rules (RaC) + auto-registration'
-            default:
-                return baseLabel
-        } 
     }
 
 }
