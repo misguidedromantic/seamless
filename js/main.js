@@ -1,6 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
+    console.log('1110 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -1685,7 +1686,6 @@ class cardItemPositioning {
     }
 
     isExclusiveSelectionCard(d){
-        console.log(d)
         return d.cardID !== 'mechanism' && d.concept !== 'obligation'
     }
     
