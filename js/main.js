@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1316 2026 03 16')
+    console.log('1548 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -577,10 +577,20 @@ class cardsDataHandler {
 
     prepareItemsForListBoxCard(card){
         const data = this.getContentDataForCard(card.title)
+        
+        
         return [
             ...[new title (card.title)],
-            ...data.map(d => new item (d, card))
+            ...data.map(d => this.mapToItemType(d, card))
         ]
+    }
+
+    mapToItemType(d, card){
+        if(d.constructor.name === 'mechanismFeature'){
+            return new subItem (d, card)
+        } else {
+            return new item (d, card)
+        }
     }
 
     prepareItemsForOptionCard(card){
@@ -609,8 +619,7 @@ class cardsDataHandler {
                 data = dataHandler.getActivities()
                 return data.map(d => new activity (d))
             case 'mechanism':
-                data = dataHandler.getMechanisms()
-                return data.map(d => new mechanism (d))
+                return dataHandler.getMechanisms()
             default:
                 return dataHandler.getOptionCardData(title)
         }
@@ -663,6 +672,14 @@ class item {
 class cardTag extends item {
     constructor(object, card){
         super(object, card)
+    }
+}
+
+class subItem extends item {
+    constructor(object, card){
+        super(object, card)
+        this.label = ' + ' + this.label
+        this.selectable = false 
     }
 }
 
@@ -1422,8 +1439,8 @@ class dataHandler{
         switch(description){
             case 'entreprenuers bank account':
                 features = [
-                    new mechanismFeature('machine-readable tax rules'),
-                    new mechanismFeature('automated tax registration')
+                    'machine-readable tax rules',
+                    'automated tax registration'
                 ]
         }
         
@@ -1436,7 +1453,7 @@ class dataHandler{
 
     static addFeatures(items, features){
         features.forEach(feature => {
-            items.push(new feature)
+            items.push(new mechanismFeature(feature))
         })
     }
 
