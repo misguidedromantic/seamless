@@ -1,7 +1,7 @@
 const gRatio = 1.618
 
 window.onload = async function(){
-    console.log('1554 2026 03 16')
+    console.log('1610 2026 03 16')
     orchestration.setup()
     orchestration.loadDefaultView()
 }
@@ -1409,7 +1409,7 @@ class dataHandler{
         descriptions.forEach(description => {
             const thisItem = this.getMechanism(description)
 
-            items.push(thisItem)
+            items.push(thisItem.object)
 
             if(thisItem.features !== null){
                 this.addFeatures(items, thisItem.features)    
@@ -1446,7 +1446,7 @@ class dataHandler{
         }
         
         return {
-            description: new mechanism (description),
+            object: new mechanism (description),
             features: features
         }
 
